@@ -21,8 +21,8 @@ company = "Pharmacie Shekinah"
 # copyright text to display in about app dialogs
 copyright = "Copyright (C) 2024 by Flet"
 
-[tool.flet.app]
-path = "src"
+# [tool.flet.app]
+# path = "src"
 
 [tool.flet.flutter.pubspec.dependency_overrides]
 file_picker = "8.1.4"

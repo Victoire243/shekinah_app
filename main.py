@@ -1178,7 +1178,7 @@ def main(page: ft.Page):
     page.title = "Shekinah App"
     page.bgcolor = "#f0f0f0"
     page.fonts = {
-        "Poppins": "src/assets/fonts/Poppins/Poppins-Regular.ttf",
+        "Poppins": "assets/fonts/Poppins/Poppins-Regular.ttf",
     }
     page.theme = Theme(font_family="Poppins")
 

@@ -2,7 +2,7 @@ import sqlite3
 
 
 class DBUtils:
-    def __init__(self, db_path: str = "src/db/db.sqlite3"):
+    def __init__(self, db_path: str = "db.sqlite3"):
         self.db_path = db_path
         self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self.cursor = self.conn.cursor()
