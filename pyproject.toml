@@ -26,3 +26,7 @@ copyright = "Copyright (C) 2024 by Flet"
 
 [tool.flet.flutter.pubspec.dependency_overrides]
 file_picker = "8.1.4"
+
+[tool.flet.assets]
+# List of asset directories to include in the app package
+directories = ["assets", "db"]
