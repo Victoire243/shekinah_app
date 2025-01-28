@@ -5,12 +5,15 @@ from components.CustomDraftButton import CustomDraftButton
 from components.CustomTextField import CustomTextField
 from utils.nombre_to_chiffre import number_to_words
 from models.medicament_entree import MedicamentEntree
+import pathlib
 
 from utils.speaker import Speaker
 from flet import *
 from db.db_utils import DBUtils
 
-db = DBUtils("db.sqlite3")
+stockage_path = str(pathlib.Path.home()).replace("\\", "/") + "/Shekinah App"
+
+db = DBUtils(stockage_path + "/db.sqlite3")
 list_medocs_names = db.get_all_medocs_list()
 list_medocs_for_preview = db.get_medocs_for_list_preview()
 
