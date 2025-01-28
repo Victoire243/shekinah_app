@@ -10,7 +10,7 @@ from utils.speaker import Speaker
 from flet import *
 from db.db_utils import DBUtils
 
-db = DBUtils()
+db = DBUtils("db.sqlite3")
 list_medocs_names = db.get_all_medocs_list()
 list_medocs_for_preview = db.get_medocs_for_list_preview()
 
@@ -91,9 +91,13 @@ class Medicament(Container):
 
 
 class ProduitsView(Column):
-    def __init__(self, page: ft.Page):
+    def __init__(
+        self, page: ft.Page, handler_entree_produit=None, handler_entree_stock=None
+    ):
         super().__init__()
         self.page = page
+        self.handler_entree_produit = handler_entree_produit
+        self.handler_entree_stock = handler_entree_stock
         self.controls = [
             Container(
                 bgcolor="black",
@@ -136,6 +140,7 @@ class ProduitsView(Column):
                                         color="white",
                                         bgcolor="blue",
                                     ),
+                                    on_click=self.handler_entree_produit,
                                 ),
                                 Button(
                                     "+ Entrée Stock",
@@ -145,6 +150,7 @@ class ProduitsView(Column):
                                         color="white",
                                         bgcolor="blue",
                                     ),
+                                    on_click=self.handler_entree_stock,
                                 ),
                                 Button(
                                     " ",
@@ -271,23 +277,27 @@ class EntreeStockView(Column):
             value="1",
             input_filter=NumbersOnlyInputFilter(),
             col=1,
+            on_change=self.__update_prix_total,
         )
         self.forme = CustomTextField(col=1)
         self.prix_unitaire_achat = CustomTextField(
             value="0",
             input_filter=InputFilter(regex_string=r"^(\d*\.?\d+|\d+\.?\d*|\d*)$"),
             col=1,
+            on_change=self.__update_prix_total,
         )
         self.prix_unitaire_vente = CustomTextField(
             value="0",
             input_filter=InputFilter(regex_string=r"^(\d*\.?\d+|\d+\.?\d*|\d*)$"),
             col=1,
+            on_change=self.__update_prix_total,
         )
         self.prix_total_achat = Text("0", weight=FontWeight.BOLD, col=1)
         self.prix_total_vente = Text("0", weight=FontWeight.BOLD, col=1)
         self.benefice = Text("0", weight=FontWeight.BOLD)
         self.totaux_achat = Text("0", weight=FontWeight.BOLD)
         self.totaux_vente = Text("0", weight=FontWeight.BOLD)
+        self.totaux_gain = Text("0", weight=FontWeight.BOLD)
         self.gain = Text("0", weight=FontWeight.BOLD)
         self.produit_designation = AutoComplete(
             suggestions=list(self.__autocomplete_suggestions()),
@@ -314,7 +324,76 @@ class EntreeStockView(Column):
                 ),
             ),
             self.__input_medocs(),
-            Column(scroll=ScrollMode.AUTO, controls=[self.list_medocs_entree]),
+            Column(
+                scroll=ScrollMode.AUTO,
+                controls=[
+                    self.list_medocs_entree,
+                    Container(
+                        bgcolor="#8B8B8B",
+                        padding=padding.symmetric(vertical=10, horizontal=20),
+                        content=Row(
+                            alignment=MainAxisAlignment.END,
+                            controls=[
+                                Container(
+                                    bgcolor="blue",
+                                    padding=padding.all(10),
+                                    border_radius=border_radius.all(10),
+                                    content=Row(
+                                        controls=[
+                                            Text("TOTAUX ACHAT", color="white"),
+                                            self.totaux_achat,
+                                            Text("FC", color="white"),
+                                        ]
+                                    ),
+                                ),
+                                Container(
+                                    bgcolor="blue",
+                                    padding=padding.all(10),
+                                    border_radius=border_radius.all(10),
+                                    content=Row(
+                                        controls=[
+                                            Text("TOTAUX VENTE", color="white"),
+                                            self.totaux_vente,
+                                            Text("FC", color="white"),
+                                        ]
+                                    ),
+                                ),
+                                Container(
+                                    bgcolor="blue",
+                                    padding=padding.all(10),
+                                    border_radius=border_radius.all(10),
+                                    content=Row(
+                                        controls=[
+                                            Text("TOTAUX GAIN", color="white"),
+                                            self.totaux_gain,
+                                            Text("FC", color="white"),
+                                        ]
+                                    ),
+                                ),
+                                Button(
+                                    "Reinitialiser",
+                                    elevation=1,
+                                    style=ButtonStyle(
+                                        shape=RoundedRectangleBorder(10),
+                                        color="white",
+                                        bgcolor="#424242",
+                                    ),
+                                    on_click=self.__tout_reinitialiser,
+                                ),
+                                Button(
+                                    "Terminer",
+                                    elevation=1,
+                                    style=ButtonStyle(
+                                        shape=RoundedRectangleBorder(10),
+                                        color="white",
+                                        bgcolor="green",
+                                    ),
+                                ),
+                            ],
+                        ),
+                    ),
+                ],
+            ),
         ]
 
     def __input_medocs(self):
@@ -414,9 +493,28 @@ class EntreeStockView(Column):
     def delete_medoc(self, e):
         self.list_medocs_entree.controls.remove(e)
         self.list_medocs_entree.update()
+        self.__calcul_totaux()
 
     def __calcul_totaux(self):
-        pass
+        total_vente = 0
+        total_achat = 0
+        for medoc in self.list_medocs_entree.controls:
+            total_achat += (
+                float(medoc.prix_total_achat.value)
+                if medoc.prix_total_achat.value
+                else 0
+            )
+            total_vente += (
+                float(medoc.prix_total_vente.value)
+                if medoc.prix_total_vente.value
+                else 0
+            )
+        self.totaux_achat.value = str(round(total_achat, 3))
+        self.totaux_vente.value = str(round(total_vente, 3))
+        self.totaux_gain.value = str(round(total_vente - total_achat, 3))
+        self.totaux_gain.update()
+        self.totaux_achat.update()
+        self.totaux_vente.update()
 
     def __update_prix_total(self, e):
         self.prix_total_achat.value = str(
@@ -469,12 +567,65 @@ class EntreeStockView(Column):
         self.prix_total_achat.update()
         self.gain.update()
 
+    def __tout_reinitialiser(self, e):
+        self.list_medocs_entree.controls = []
+        self.nom_fournisseur.value = ""
+        self.totaux_achat.value = ""
+        self.totaux_vente.value = ""
+        self.totaux_gain.value = ""
+        self.totaux_achat.update()
+        self.totaux_vente.update()
+        self.totaux_gain.update()
+        self.__reinitialiser_entree()
+        self.__calcul_totaux()
+        self.list_medocs_entree.update()
+
+    def __update_prix_total(self, e):
+        self.prix_total_achat.value = str(
+            round(
+                float(
+                    self.prix_unitaire_achat.value
+                    if self.prix_unitaire_achat.value
+                    else 0
+                )
+                * float(self.quantite.value if self.quantite.value else 0),
+                3,
+            )
+        )
+        self.prix_total_achat.update()
+        self.prix_total_vente.value = str(
+            round(
+                float(
+                    self.prix_unitaire_vente.value
+                    if self.prix_unitaire_vente.value
+                    else 0
+                )
+                * float(self.quantite.value if self.quantite.value else 0),
+                3,
+            )
+        )
+        self.prix_total_vente.update()
+        self.__calcul_totaux()
+        self.gain.value = str(
+            round(
+                float(self.prix_total_vente.value) - float(self.prix_total_achat.value),
+                3,
+            )
+        )
+        self.gain.update()
+
 
 class PrincipalView(Column):
-    def __init__(self, page: ft.Page, draft_handler=None):
+    def __init__(
+        self,
+        page: ft.Page,
+        draft_handler=None,
+        taux_dollar=None,
+    ):
         super().__init__()
         self.current_date = datetime.datetime.now()
         self.page = page
+        self.taux_dollar = taux_dollar
         self.spacing = 0
         self.draft_handler = draft_handler
         self.list_medocs_panier = ListView(
@@ -485,14 +636,14 @@ class PrincipalView(Column):
             label="Réduction accordée",
             suffix=Text("FC"),
             value=0,
-            input_filter=NumbersOnlyInputFilter(),
+            input_filter=InputFilter(regex_string=r"^(\d*\.?\d+|\d+\.?\d*|\d*)$"),
             on_change=lambda e: self.__calcul_totaux(),
         )
         self.charges_connexes = CustomTextField(
             label="Charges connexes",
             suffix=Text("FC"),
             value=0,
-            input_filter=NumbersOnlyInputFilter(),
+            input_filter=InputFilter(regex_string=r"^(\d*\.?\d+|\d+\.?\d*|\d*)$"),
             on_change=lambda e: self.__calcul_totaux(),
         )
 
@@ -519,7 +670,7 @@ class PrincipalView(Column):
             ),
         )
         self.totaux = Text(
-            "0",
+            "0 Fc",
             color="white",
             weight=FontWeight.BOLD,
         )
@@ -536,12 +687,14 @@ class PrincipalView(Column):
             content_padding=padding.symmetric(vertical=0, horizontal=10),
             value="FC",
             label="Devise",
+            on_change=self.__change_devise,
         )
         self.net_a_payer = Text(
             " Net à payer : 0 Fc",
             weight=FontWeight.BOLD,
             color="blue",
         )
+        self.previous_devise = self.devises.value
         self.montant_chiffre = Text(
             "Zéro",
             size=12,
@@ -656,15 +809,6 @@ class PrincipalView(Column):
                                             bgcolor="blue",
                                             content=self.totaux,
                                             padding=padding.all(10),
-                                        ),
-                                        Container(
-                                            bgcolor="blue",
-                                            content=Text(
-                                                "FC",
-                                                color="white",
-                                                weight=FontWeight.BOLD,
-                                            ),
-                                            padding=padding.all(10),
                                             border_radius=border_radius.only(
                                                 top_right=10, bottom_right=10
                                             ),
@@ -704,6 +848,69 @@ class PrincipalView(Column):
         self.date_field.value = str(e.control.value.strftime("%d/%m/%Y"))
         self.date_field.update()
 
+    def handler_change_taux(self, taux):
+        self.taux_dollar = taux
+        if self.devises.value == "$":
+            self.previous_devise = "FC"
+            self.__change_devise(taux)
+
+    def __change_devise(self, e: ControlEvent | float):
+        if self.previous_devise == self.devises.value:
+            return
+        if isinstance(e, float):
+            taux = e
+        elif e.data == "$":
+            taux = float(self.taux_dollar) if self.taux_dollar else 1
+        else:
+            taux = 1
+        self.prix_unitaire.value = (
+            round(float(self.prix_unitaire.value) / taux, 3)
+            if self.prix_unitaire.value
+            else 0
+        )
+        self.prix_total.value = (
+            round(float(self.prix_total.value) / taux, 3)
+            if self.prix_total.value
+            else 0
+        )
+        self.charges_connexes.value = (
+            (
+                round(float(self.charges_connexes.value) / taux)
+                if not (self.charges_connexes.value is None)
+                else 0
+            )
+            if self.devises.value == "$"
+            else (
+                round(float(self.charges_connexes.value) * float(self.taux_dollar))
+                if not (self.charges_connexes.value is None)
+                else 0
+            )
+        )
+        self.reduction_accordee.value = (
+            (
+                round(float(self.reduction_accordee.value) / taux, 3)
+                if self.reduction_accordee.value
+                else 0
+            )
+            if self.devises.value == "$"
+            else (
+                round(float(self.reduction_accordee.value) * float(self.taux_dollar), 3)
+                if self.reduction_accordee.value
+                else 0
+            )
+        )
+        self.charges_connexes.suffix.value = "$" if self.devises.value == "$" else "FC"
+        self.reduction_accordee.suffix.value = (
+            "$" if self.devises.value == "$" else "FC"
+        )
+
+        self.previous_devise = self.devises.value
+        self.prix_unitaire.update()
+        self.prix_total.update()
+        self.charges_connexes.update()
+        self.reduction_accordee.update()
+        self.__calcul_totaux()
+
     def __add_draft(self, e):
         if self.list_medocs_panier.controls:
             self.draft_handler(
@@ -730,9 +937,11 @@ class PrincipalView(Column):
                     nom=self.produit_designation.suggestions[
                         self.produit_designation.selected_index
                     ].value,
-                    quantite=self.quantite.value,
+                    quantite=self.quantite.value if self.quantite.value else 0,
                     forme=self.forme.value,
-                    prix_unitaire=self.prix_unitaire.value,
+                    prix_unitaire=(
+                        self.prix_unitaire.value if self.prix_unitaire.value else 0
+                    ),
                     prix_total=self.prix_total.value,
                     medoc_delete=self.__delete_medoc,
                     calcul_totaux=self.__calcul_totaux,
@@ -838,15 +1047,31 @@ class PrincipalView(Column):
             yield AutoCompleteSuggestion(key=name, value=name)
 
     def __calcul_totaux(self):
+        taux = (
+            1
+            if self.devises.value == "FC"
+            else float(self.taux_dollar) if self.taux_dollar else 1
+        )
         total = 0
         for medoc in self.list_medocs_panier.controls:
-            total += float(medoc.prix_total.value if medoc.prix_total.value else 0)
+            total += (
+                float(medoc.prix_total.value if medoc.prix_total.value else 0) / taux
+            )
         total += float(
             self.charges_connexes.value if self.charges_connexes.value else 0
         ) - float(self.reduction_accordee.value if self.reduction_accordee.value else 0)
-        self.totaux.value = str(total)
-        self.net_a_payer.value = f"Net à payer : {total} FC"
-        self.montant_chiffre.value = number_to_words(int(total))
+        self.totaux.value = (
+            str(round(total, 3)) + " FC"
+            if self.devises.value == "FC"
+            else str(round(total, 3)) + " $"
+        )
+        self.net_a_payer.value = (
+            f"Net à payer : {round(total, 3)} FC"
+            if self.devises.value == "FC"
+            else f"Net à payer : {round(total, 3)} $"
+        )
+        total = int(total) if total.is_integer() else round(total, 3)
+        self.montant_chiffre.value = number_to_words(total)
         self.net_a_payer.update()
         self.montant_chiffre.update()
         self.totaux.update()
@@ -889,9 +1114,10 @@ class PrincipalView(Column):
         self.produit_designation.update()
 
     def __speack(self):
+        devise = "francs" if self.devises.value == "FC" else "dollars"
         speaker = Speaker()
         speaker.speaker.setProperty("rate", 210)
-        speaker.say(f"Le montant à payer est de {self.montant_chiffre.value} francs")
+        speaker.say(f"Le montant à payer est de {self.montant_chiffre.value} {devise}")
 
     def load_draft(self, draft_list, nom_client):
         self.list_medocs_panier.controls = draft_list
@@ -906,7 +1132,17 @@ class Accueil(ft.Container):
         super().__init__()
         self.page = page
         self.expand = True
-        self.__principal_view = PrincipalView(self.page, draft_handler=self.__add_draft)
+        self.taux_dollar = CupertinoTextField(
+            value="2850",
+            width=100,
+            keyboard_type=KeyboardType.NUMBER,
+            input_filter=InputFilter(regex_string=r"^(\d*\.?\d+|\d+\.?\d*|\d*)$"),
+        )
+        self.__principal_view = PrincipalView(
+            self.page,
+            draft_handler=self.__add_draft,
+            taux_dollar=self.taux_dollar.value,
+        )
         self.__ventes_view = Column()
         self.__clients_view = Column()
         self.current_view = Container(
@@ -916,6 +1152,7 @@ class Accueil(ft.Container):
             auto_scroll=True,
             controls=[],
         )
+
         self.content = Row(
             vertical_alignment=CrossAxisAlignment.STRETCH,
             spacing=0,
@@ -998,18 +1235,13 @@ class Accueil(ft.Container):
                     content=Row(
                         controls=[
                             Text("1$ ="),
-                            CupertinoTextField(
-                                value="2850",
-                                width=100,
-                                keyboard_type=KeyboardType.NUMBER,
-                                input_filter=NumbersOnlyInputFilter(),
-                            ),
+                            self.taux_dollar,
                             Text("FC"),
                             IconButton(
                                 icon=Icons.CHECK,
                                 icon_size=20,
                                 icon_color="blue",
-                                on_click=lambda e: print("Convertir"),
+                                on_click=self.__change_taux_dollar,
                                 padding=padding.all(0),
                             ),
                         ]
@@ -1067,12 +1299,28 @@ class Accueil(ft.Container):
             case "Accueil":
                 self.current_view.content = self.__principal_view
             case "Produits":
-                self.current_view.content = ProduitsView(self.page)
+                self.current_view.content = ProduitsView(
+                    self.page,
+                    self.__add_new_product,
+                    self.__change_view_to_entree_stock,
+                )
             case "Ventes":
                 self.current_view.content = self.__ventes_view
             case "Clients":
                 self.current_view.content = self.__clients_view
         self.current_view.update()
+
+    def __change_taux_dollar(self, e):
+        if self.taux_dollar.value:
+            self.__principal_view.handler_change_taux(float(self.taux_dollar.value))
+            self.page.snack_bar = SnackBar(
+                content=Text(
+                    f"Le taux du dollar a été modifié : 1$ = {self.taux_dollar.value} FC"
+                ),
+                open=True,
+                show_close_icon=True,
+            )
+            self.page.update()
 
     def __select_date(self, e: ControlEvent):
         self.current_date = e.control.value
@@ -1080,6 +1328,20 @@ class Accueil(ft.Container):
         self.date_field.update()
 
     def __add_new_product(self, e):
+        self.nom = CustomTextField(label="Nom du produit", height=60)
+        self.forme = CustomTextField(label="Forme du produit", height=60)
+        self.prix_achat = CustomTextField(
+            label="Prix d'achat",
+            input_filter=InputFilter(regex_string=r"^(\d*\.?\d+|\d+\.?\d*|\d*)$"),
+            value="0",
+            height=60,
+        )
+        self.prix_vente = CustomTextField(
+            label="Prix de vente",
+            input_filter=InputFilter(regex_string=r"^(\d*\.?\d+|\d+\.?\d*|\d*)$"),
+            value="0",
+            height=60,
+        )
         self.current_date = datetime.datetime.now()
         self.date_field = CustomTextField(
             label="Date d'expiration",
@@ -1097,31 +1359,17 @@ class Accueil(ft.Container):
                 )
             ),
         )
-        dialog = AlertDialog(
+        self.dialog = AlertDialog(
             adaptive=True,
             title=Text("Ajouter un nouveau produit"),
             bgcolor="#f0f0f0",
             content=Column(
                 expand=True,
                 controls=[
-                    CustomTextField(label="Nom du produit", height=60),
-                    CustomTextField(label="Forme du produit", height=60),
-                    CustomTextField(
-                        label="Prix d'achat",
-                        input_filter=InputFilter(
-                            regex_string=r"^(\d*\.?\d+|\d+\.?\d*|\d*)$"
-                        ),
-                        value="0",
-                        height=60,
-                    ),
-                    CustomTextField(
-                        label="Prix de vente",
-                        input_filter=InputFilter(
-                            regex_string=r"^(\d*\.?\d+|\d+\.?\d*|\d*)$"
-                        ),
-                        value="0",
-                        height=60,
-                    ),
+                    self.nom,
+                    self.forme,
+                    self.prix_achat,
+                    self.prix_vente,
                     self.date_field,
                 ],
             ),
@@ -1135,6 +1383,7 @@ class Accueil(ft.Container):
                         bgcolor="#424242",
                     ),
                     width=200,
+                    on_click=self.__renitialiser_produit,
                 ),
                 Button(
                     "Ajouter",
@@ -1145,10 +1394,11 @@ class Accueil(ft.Container):
                         bgcolor="blue",
                     ),
                     width=200,
+                    on_click=self.__add_medoc_to_db,
                 ),
             ],
         )
-        self.page.open(dialog)
+        self.page.open(self.dialog)
         self.page.update()
 
     def __add_draft(self, list_draft, nom_client, date):
@@ -1164,6 +1414,31 @@ class Accueil(ft.Container):
         )
         self.list_medocs_draft.update()
 
+    def __add_medoc_to_db(self, e):
+        db.add_medoc(
+            [
+                self.nom.value,
+                self.forme.value,
+                self.prix_achat.value,
+                self.prix_vente.value,
+                self.date_field.value,
+            ]
+        )
+        self.page.close(self.dialog)
+        self.page.update()
+
+    def __renitialiser_produit(self, e):
+        self.nom.value = ""
+        self.forme.value = ""
+        self.prix_achat.value = "0"
+        self.prix_vente.value = "0"
+        self.date_field.value = str(self.current_date.strftime("%d/%m/%Y"))
+        self.nom.update()
+        self.forme.update()
+        self.prix_achat.update()
+        self.prix_vente.update()
+        self.date_field.update()
+
     def __delete_draft(self, e):
         self.list_medocs_draft.controls.remove(e)
         self.list_medocs_draft.update()
@@ -1174,6 +1449,17 @@ class Accueil(ft.Container):
 
 
 def main(page: ft.Page):
+    def handle_window_event(e):
+        if e.data == "close":
+            page.open(confirm_dialog)
+
+    def yes_click(e):
+        page.window.destroy()
+        page.update()
+
+    def no_click(e):
+        page.close(confirm_dialog)
+
     page.padding = padding.all(0)
     page.title = "Shekinah App"
     page.bgcolor = "#f0f0f0"
@@ -1181,9 +1467,25 @@ def main(page: ft.Page):
         "Poppins": "assets/fonts/Poppins/Poppins-Regular.ttf",
     }
     page.theme = Theme(font_family="Poppins")
+    page.window.center()
+    page.window.maximized = True
+    # page.window.prevent_close = True
+    # page.window.on_event = handle_window_event
+
+    confirm_dialog = ft.AlertDialog(
+        modal=True,
+        title=ft.Text("Veuillez confirmer"),
+        content=ft.Text("Voulez-vous quitter ?"),
+        actions=[
+            ft.ElevatedButton("Oui, quitter", on_click=yes_click),
+            ft.OutlinedButton("Non, annuler", on_click=no_click),
+        ],
+        actions_alignment=ft.MainAxisAlignment.END,
+    )
 
     home = Accueil(page)
     page.add(home)
+    page.update()
 
 
-ft.app(main)
+ft.app(main, assets_dir="assets")

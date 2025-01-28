@@ -62,6 +62,111 @@ class DBUtils:
             ).fetchall()
         )
 
+    def insert_fields(self, table_name, fields, values):
+        fields_str = ", ".join(fields)
+        values_str = ", ".join([f"'{v}'" for v in values])
+        self.cursor.execute(
+            f"INSERT INTO {table_name} ({fields_str}) VALUES ({values_str})"
+        )
+        self.conn.commit()
+
+    def add_medoc(self, medoc):
+        self.insert_fields(
+            "accounts_produit",
+            [
+                "nom",
+                "marque",
+                "date_entree",
+                "date_dexpiration",
+                "prix_achat",
+                "prix_vente",
+            ],
+            medoc,
+        )
+
+    def delete_medoc(self, name):
+        self.cursor.execute(f"DELETE FROM accounts_produit WHERE nom = '{name}'")
+        self.conn.commit()
+
+    def get_all_medocs_names(self):
+        return self.cursor.execute("SELECT nom FROM accounts_produit").fetchall()
+
+    def get_all_medocs_names_as_list(self):
+        return [medoc[0] for medoc in self.get_all_medocs_names()]
+
+    def get_medoc_quantity(self, name):
+        return self.cursor.execute(
+            f"SELECT quantite FROM accounts_produit WHERE nom = '{name}'"
+        ).fetchone()[0]
+
+    def update_medoc_quantity(self, name, quantity):
+        self.cursor.execute(
+            f"UPDATE accounts_produit SET quantite = '{quantity}' WHERE nom = '{name}'"
+        )
+        self.conn.commit()
+
+    def update_medoc(self, name, fields, values):
+        fields_str = ", ".join(
+            [f"{field} = '{value}'" for field, value in zip(fields, values)]
+        )
+        self.cursor.execute(
+            f"UPDATE accounts_produit SET {fields_str} WHERE nom = '{name}'"
+        )
+        self.conn.commit()
+
+    def get_medoc(self, name):
+        return self.cursor.execute(
+            f"SELECT * FROM accounts_produit WHERE nom = '{name}'"
+        ).fetchone()
+
+    def get_medoc_fields(self):
+        return [
+            description[0]
+            for description in self.cursor.execute(
+                "PRAGMA table_info(accounts_produit)"
+            ).fetchall()
+        ]
+
+    def get_medoc_fields_types(self):
+        return [
+            description[2]
+            for description in self.cursor.execute(
+                "PRAGMA table_info(accounts_produit)"
+            ).fetchall()
+        ]
+
+    def get_medoc_fields_as_dict(self):
+        return {
+            description[1]: description[2]
+            for description in self.cursor.execute(
+                "PRAGMA table_info(accounts_produit)"
+            ).fetchall()
+        }
+
+    def get_medoc_fields_types_as_dict(self):
+        return {
+            description[1]: description[2]
+            for description in self.cursor.execute(
+                "PRAGMA table_info(accounts_produit)"
+            ).fetchall()
+        }
+
+    def get_medoc_fields_as_list(self):
+        return [
+            description[1]
+            for description in self.cursor.execute(
+                "PRAGMA table_info(accounts_produit)"
+            ).fetchall()
+        ]
+
+    def get_medoc_fields_types_as_list(self):
+        return [
+            description[2]
+            for description in self.cursor.execute(
+                "PRAGMA table_info(accounts_produit)"
+            ).fetchall()
+        ]
+
 
 if __name__ == "__main__":
     db = DBUtils()
