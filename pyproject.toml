@@ -4,7 +4,7 @@ version = "0.1.0"
 description = ""
 readme = "README.md"
 requires-python = ">=3.8"
-dependencies = ["flet==0.25.0", "pyttsx3"]
+dependencies = ["flet==0.25.0", "pyttsx3==2.98"]
 
 [tool.flet]
 # org name in reverse domain name notation, e.g. "com.mycompany".
