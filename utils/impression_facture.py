@@ -5,6 +5,8 @@ import barcode
 from barcode.writer import ImageWriter
 import os
 import subprocess
+import win32print
+import win32api
 
 
 def generer_facture(facture, fichier_sortie="facture_a4.pdf"):
@@ -77,21 +79,54 @@ def generer_facture(facture, fichier_sortie="facture_a4.pdf"):
     os.remove(f"{code_barre_path}.png")
 
     # Ouvrir l'imprimante par défaut pour imprimer la facture
-    imprimer_facture(fichier_sortie)
+    ouvrir_facture(fichier_sortie)
+
+
+def ouvrir_facture(fichier_pdf):
+    """
+    Ouvre le fichier PDF avec l'application par défaut du système.
+    """
+    if os.name == "nt":  # Windows
+        os.startfile(fichier_pdf)
+    elif os.name == "posix":  # Linux ou macOS
+        subprocess.run(["xdg-open", fichier_pdf])
+    else:
+        print("Système d'exploitation non supporté pour l'ouverture automatique.")
+
+
+def lister_imprimantes():
+    """
+    Liste les imprimantes installées sur la machine et affiche l'imprimante par défaut.
+    """
+    if os.name == "nt":  # Windows
+        result = subprocess.run(
+            ["wmic", "printer", "get", "name,default"], capture_output=True, text=True
+        )
+        print(result.stdout)
+    elif os.name == "posix":  # Linux ou macOS
+        result = subprocess.run(["lpstat", "-p", "-d"], capture_output=True, text=True)
+        print(result.stdout)
+    else:
+        print("Système d'exploitation non supporté pour la liste des imprimantes.")
 
 
 def imprimer_facture(fichier_pdf):
     """
-    Ouvre l'imprimante par défaut pour imprimer le fichier PDF.
+    Ouvre la fenêtre de dialogue d'impression pour le fichier PDF.
     """
-    if os.name == "nt":  # Windows
-        os.startfile(fichier_pdf, "print")
-    elif os.name == "posix":  # Linux ou macOS
-        subprocess.run(["lp", fichier_pdf])
-    else:
-        print("Système d'exploitation non supporté pour l'impression automatique.")
+    # Récupérer l'imprimante par défaut
+    imprimante_par_defaut = win32print.GetDefaultPrinter()
+    print(imprimante_par_defaut)
+
+    # Ouvrir la boîte de dialogue d'impression
+    win32api.ShellExecute(0, "print", fichier_pdf, None, ".", 0)
 
 
+# Exemple d'utilisation pour imprimer la facture
+# imprimer_facture("facture_a4.pdf")
+
+
+# lister_imprimantes()
 # Exemple d'utilisation
 facture = {
     "pharmacie": {

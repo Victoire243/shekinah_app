@@ -6,14 +6,16 @@ from components.CustomTextField import CustomTextField
 from utils.nombre_to_chiffre import number_to_words
 from models.medicament_entree import MedicamentEntree
 import pathlib
-
 from utils.speaker import Speaker
 from flet import *
 from db.db_utils import DBUtils
 
-stockage_path = str(pathlib.Path.home()).replace("\\", "/") + "/Shekinah App"
+current_directory = (
+    str(pathlib.Path(__file__).parent.resolve()).replace("\\", "/")
+    + "/assets/database/db.sqlite3"
+)
 
-db = DBUtils(stockage_path + "/db.sqlite3")
+db = DBUtils(current_directory)
 list_medocs_names = db.get_all_medocs_list()
 list_medocs_for_preview = db.get_medocs_for_list_preview()
 
@@ -1117,8 +1119,8 @@ class PrincipalView(Column):
         self.produit_designation.update()
 
     def __speack(self):
-        devise = "francs" if self.devises.value == "FC" else "dollars"
         speaker = Speaker()
+        devise = "francs" if self.devises.value == "FC" else "dollars"
         speaker.speaker.setProperty("rate", 210)
         speaker.say(f"Le montant à payer est de {self.montant_chiffre.value} {devise}")
 
@@ -1155,6 +1157,9 @@ class Accueil(ft.Container):
             auto_scroll=True,
             controls=[],
         )
+        self.file_picker = FilePicker(on_result=self.__pick_file_db)
+        self.page.overlay.append(self.file_picker)
+        self.page.update()
 
         self.content = Row(
             vertical_alignment=CrossAxisAlignment.STRETCH,
@@ -1184,9 +1189,7 @@ class Accueil(ft.Container):
                     alignment=alignment.center,
                     content=Row(
                         controls=[
-                            Image(
-                                src="src/assets/images/logo_shekinah_.png", height=70
-                            ),
+                            Image(src="assets/images/logo_shekinah_.png", height=70),
                             Text(
                                 "Pharmacie\nShekinah",
                                 color="white",
@@ -1331,7 +1334,9 @@ class Accueil(ft.Container):
         self.date_field.update()
 
     def __add_new_product(self, e):
-        self.nom = CustomTextField(label="Nom du produit", height=60)
+        self.nom = CustomTextField(
+            label="Nom du produit", height=60, on_blur=self.__verifier_produit
+        )
         self.forme = CustomTextField(label="Forme du produit", height=60)
         self.prix_achat = CustomTextField(
             label="Prix d'achat",
@@ -1362,6 +1367,20 @@ class Accueil(ft.Container):
                 )
             ),
         )
+        self.db_file_picked = CustomTextField(
+            value=" ", read_only=True, height=40, multiline=True
+        )
+        self.button_ajouter = Button(
+            "Ajouter",
+            elevation=1,
+            style=ButtonStyle(
+                shape=RoundedRectangleBorder(10),
+                color="white",
+                bgcolor="blue",
+            ),
+            width=200,
+            on_click=lambda e: self.page.run_thread(self.__add_medoc_to_db),
+        )
         self.dialog = AlertDialog(
             adaptive=True,
             title=Text("Ajouter un nouveau produit"),
@@ -1374,6 +1393,25 @@ class Accueil(ft.Container):
                     self.prix_achat,
                     self.prix_vente,
                     self.date_field,
+                    Text("ou selectionner un fichier de base de données"),
+                    Row(
+                        alignment=MainAxisAlignment.SPACE_BETWEEN,
+                        vertical_alignment=CrossAxisAlignment.CENTER,
+                        controls=[
+                            self.db_file_picked,
+                            IconButton(
+                                icon=Icons.FILE_UPLOAD,
+                                bgcolor="#424242",
+                                height=40,
+                                icon_color="white",
+                                on_click=lambda e: self.file_picker.pick_files(
+                                    dialog_title="Selectionner un fichier csv de base de données",
+                                    allowed_extensions=["csv", "png"],
+                                    allow_multiple=False,
+                                ),
+                            ),
+                        ],
+                    ),
                 ],
             ),
             actions=[
@@ -1388,21 +1426,22 @@ class Accueil(ft.Container):
                     width=200,
                     on_click=self.__renitialiser_produit,
                 ),
-                Button(
-                    "Ajouter",
-                    elevation=1,
-                    style=ButtonStyle(
-                        shape=RoundedRectangleBorder(10),
-                        color="white",
-                        bgcolor="blue",
-                    ),
-                    width=200,
-                    on_click=self.__add_medoc_to_db,
-                ),
+                self.button_ajouter,
             ],
         )
+
         self.page.open(self.dialog)
         self.page.update()
+
+    def __pick_file_db(self, result: FilePickerResultEvent):
+        try:
+            self.db_file_picked.value = result.files[0].name
+            self.db_file_picked.update()
+            path = result.files[0].path
+        except:
+            pass
+        else:
+            pass
 
     def __add_draft(self, list_draft, nom_client, date):
         self.list_medocs_draft.controls.append(
@@ -1417,18 +1456,66 @@ class Accueil(ft.Container):
         )
         self.list_medocs_draft.update()
 
-    def __add_medoc_to_db(self, e):
-        db.add_medoc(
-            [
-                self.nom.value,
-                self.forme.value,
-                self.prix_achat.value,
-                self.prix_vente.value,
-                self.date_field.value,
-            ]
-        )
-        self.page.close(self.dialog)
-        self.page.update()
+    def __verifier_produit(self, e):
+        if self.nom.value:
+            if db.is_medoc_exists(self.nom.value.upper()):
+                self.button_ajouter.disabled = True
+                self.button_ajouter.bgcolor = "#B4B4B4"
+                self.nom.error_text = "Ce produit existe déjà"
+                self.nom.update()
+                self.button_ajouter.update()
+            else:
+                self.nom.error_text = ""
+                self.button_ajouter.disabled = False
+                self.button_ajouter.bgcolor = "blue"
+                self.button_ajouter.update()
+                self.nom.update()
+
+    def __add_medoc_to_db(self):
+        if self.db_file_picked.value != " ":
+            db.add_medocs_from_csv(self.db_file_picked.value)
+            self.page.snack_bar = SnackBar(
+                Text("Les produits ont été ajoutés avec succès"), open=True
+            )
+            self.page.update()
+        elif (
+            self.nom.value
+            and self.forme.value
+            and self.prix_achat.value
+            and self.prix_vente.value
+        ):
+            try:
+                # "nom",
+                # "marque",
+                # "date_entree",
+                # "date_dexpiration",
+                # "prix_achat",
+                # "prix_vente",
+                self.page.run_thread(
+                    db.add_medoc,
+                    (
+                        self.nom.value.upper(),
+                        self.forme.value.upper(),
+                        datetime.datetime.now(),
+                        datetime.datetime.strptime(
+                            self.date_field.value, "%d/%m/%Y"
+                        ).date(),
+                        float(self.prix_achat.value),
+                        float(self.prix_vente.value),
+                    ),
+                )
+
+            except:
+                self.page.snack_bar = SnackBar(
+                    Text("Erreur lors de l'ajout du produit"), open=True
+                )
+            else:
+                self.page.snack_bar = SnackBar(
+                    Text("Le produit a été ajouté avec succès"), open=True
+                )
+                self.__renitialiser_produit(None)
+            finally:
+                self.page.update()
 
     def __renitialiser_produit(self, e):
         self.nom.value = ""
@@ -1436,11 +1523,13 @@ class Accueil(ft.Container):
         self.prix_achat.value = "0"
         self.prix_vente.value = "0"
         self.date_field.value = str(self.current_date.strftime("%d/%m/%Y"))
+        self.db_file_picked.value = " "
         self.nom.update()
         self.forme.update()
         self.prix_achat.update()
         self.prix_vente.update()
         self.date_field.update()
+        self.db_file_picked.update()
 
     def __delete_draft(self, e):
         self.list_medocs_draft.controls.remove(e)

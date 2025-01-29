@@ -6,6 +6,11 @@ class Speaker:
         self.speaker = pyttsx3.init()
 
     def say(self, text):
+        try:
+            self.speaker.stop()
+            self.speaker.endLoop()
+        except:
+            pass
         self.speaker.say(text)
         self.speaker.runAndWait()
 
@@ -16,4 +21,6 @@ class Speaker:
         self.speaker.save_to_file(text, file_path)
 
     def runAndWait(self):
+        if self.speaker.isBusy():
+            self.speaker.stop()
         self.speaker.runAndWait()
