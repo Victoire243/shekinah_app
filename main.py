@@ -12,7 +12,7 @@ from db.db_utils import DBUtils
 
 current_directory = (
     str(pathlib.Path(__file__).parent.resolve()).replace("\\", "/")
-    + "/assets/database/db.sqlite3"
+    + "/assets/db/db.sqlite3"
 )
 
 db = DBUtils(current_directory)
@@ -1081,8 +1081,8 @@ class PrincipalView(Column):
         self.montant_chiffre.update()
         self.totaux.update()
 
-    async def __select_medoc_from_suggestion(self, e: AutoCompleteSelectEvent):
-        medoc = await db.get_medocs_by_name(e.selection.key)
+    def __select_medoc_from_suggestion(self, e: AutoCompleteSelectEvent):
+        medoc = db.get_medocs_by_name(e.selection.key)
         self.prix_unitaire.value = str(medoc[0][4])
 
         self.prix_total.value = str(
