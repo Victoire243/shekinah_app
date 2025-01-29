@@ -12,7 +12,7 @@ from db.db_utils import DBUtils
 
 current_directory = (
     str(pathlib.Path(__file__).parent.resolve()).replace("\\", "/")
-    + "/assets/db/db.sqlite3"
+    + "/assets/db/db_test.sqlite3"
 )
 
 db = DBUtils(current_directory)
