@@ -1189,7 +1189,13 @@ class Accueil(ft.Container):
                     alignment=alignment.center,
                     content=Row(
                         controls=[
-                            Image(src="assets/images/logo_shekinah_.png", height=70),
+                            Image(
+                                src=str(
+                                    pathlib.Path(__file__).parent.resolve()
+                                ).replace("\\", "/")
+                                + "/assets/images/logo_shekinah_.png",
+                                height=70,
+                            ),
                             Text(
                                 "Pharmacie\nShekinah",
                                 color="white",
@@ -1556,7 +1562,8 @@ def main(page: ft.Page):
     page.title = "Shekinah App"
     page.bgcolor = "#f0f0f0"
     page.fonts = {
-        "Poppins": "assets/fonts/Poppins/Poppins-Regular.ttf",
+        "Poppins": str(pathlib.Path(__file__).parent.resolve()).replace("\\", "/")
+        + "/assets/fonts/Poppins/Poppins-Regular.ttf",
     }
     page.theme = Theme(font_family="Poppins")
     page.window.center()
@@ -1580,4 +1587,8 @@ def main(page: ft.Page):
     page.update()
 
 
-ft.app(main, assets_dir="assets")
+ft.app(
+    main,
+    assets_dir=str(pathlib.Path(__file__).parent.resolve()).replace("\\", "/")
+    + "/assets",
+)
