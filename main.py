@@ -20,6 +20,13 @@ list_medocs_names = db.get_all_medocs_list()
 list_medocs_for_preview = db.get_medocs_for_list_preview()
 
 
+def update_lists_medocs():
+    global list_medocs_for_preview
+    global list_medocs_names
+    list_medocs_names = db.get_all_medocs_list()
+    list_medocs_for_preview = db.get_medocs_for_list_preview()
+
+
 class Medicament(Container):
     def __init__(
         self,
@@ -103,6 +110,86 @@ class ProduitsView(Column):
         self.page = page
         self.handler_entree_produit = handler_entree_produit
         self.handler_entree_stock = handler_entree_stock
+        self.current_page = 0
+        self.items_per_page = 50
+        self.total_items = len(list_medocs_for_preview)
+        self.total_pages = (
+            self.total_items + self.items_per_page - 1
+        ) // self.items_per_page
+        self.search_bar = SearchBar(
+            bar_bgcolor="white",
+            bar_elevation=1,
+            bar_border_side=BorderSide(width=0),
+            width=250,
+            height=40,
+            view_shape=RoundedRectangleBorder(10),
+            bar_shape=RoundedRectangleBorder(10),
+            bar_hint_text="Rechercher...",
+            bar_leading=Icon(Icons.SEARCH, color="black"),
+            bar_trailing=[
+                IconButton(
+                    Icons.CLOSE,
+                    icon_color="black",
+                    icon_size=18,
+                    on_click=lambda e: self.page.run_task(self.__restore_search_bar),
+                )
+            ],
+            on_blur=lambda e: self.page.run_task(self.__search_medoc),
+        )
+        self.data_table = DataTable(
+            sort_column_index=0,
+            heading_row_color={ControlState.DEFAULT: "blue"},
+            sort_ascending=True,
+            data_row_color={ControlState.HOVERED: "blue"},
+            columns=[
+                DataColumn(
+                    label=Text(
+                        "Désignation",
+                        weight=FontWeight.BOLD,
+                        color="white",
+                    ),
+                ),
+                DataColumn(label=Text("Forme", weight=FontWeight.BOLD, color="white")),
+                DataColumn(
+                    label=Text(
+                        "Date d'entrée",
+                        weight=FontWeight.BOLD,
+                        color="white",
+                    )
+                ),
+                DataColumn(
+                    label=Text(
+                        "Date d'expiration",
+                        weight=FontWeight.BOLD,
+                        color="white",
+                    )
+                ),
+                DataColumn(
+                    label=Text(
+                        "Prix d'achat",
+                        weight=FontWeight.BOLD,
+                        color="white",
+                    ),
+                    numeric=True,
+                ),
+                DataColumn(
+                    label=Text(
+                        "Prix de vente",
+                        weight=FontWeight.BOLD,
+                        color="white",
+                    ),
+                    numeric=True,
+                ),
+                DataColumn(
+                    label=Text("Stock", weight=FontWeight.BOLD, color="white"),
+                    numeric=True,
+                ),
+                DataColumn(
+                    label=Text("Actions", weight=FontWeight.BOLD, color="white")
+                ),
+            ],
+            rows=list(self.__products()),
+        )
         self.controls = [
             Container(
                 bgcolor="black",
@@ -119,24 +206,7 @@ class ProduitsView(Column):
                         ),
                         Row(
                             controls=[
-                                SearchBar(
-                                    bar_bgcolor="white",
-                                    bar_elevation=1,
-                                    bar_border_side=BorderSide(width=0),
-                                    width=250,
-                                    height=40,
-                                    view_shape=RoundedRectangleBorder(10),
-                                    bar_shape=RoundedRectangleBorder(10),
-                                    bar_hint_text="Rechercher...",
-                                    bar_leading=Icon(Icons.SEARCH, color="black"),
-                                    bar_trailing=[
-                                        IconButton(
-                                            Icons.CLOSE,
-                                            icon_color="black",
-                                            icon_size=18,
-                                        )
-                                    ],
-                                ),
+                                self.search_bar,
                                 Button(
                                     "+ Produit",
                                     elevation=1,
@@ -179,76 +249,64 @@ class ProduitsView(Column):
                 padding=padding.symmetric(horizontal=10, vertical=10),
                 content=Column(
                     scroll=ScrollMode.AUTO,
-                    controls=[
-                        DataTable(
-                            sort_column_index=0,
-                            heading_row_color={ControlState.DEFAULT: "blue"},
-                            sort_ascending=True,
-                            data_row_color={ControlState.HOVERED: "blue"},
-                            columns=[
-                                DataColumn(
-                                    label=Text(
-                                        "Désignation",
-                                        weight=FontWeight.BOLD,
-                                        color="white",
-                                    ),
-                                ),
-                                DataColumn(
-                                    label=Text(
-                                        "Forme", weight=FontWeight.BOLD, color="white"
-                                    )
-                                ),
-                                DataColumn(
-                                    label=Text(
-                                        "Date d'entrée",
-                                        weight=FontWeight.BOLD,
-                                        color="white",
-                                    )
-                                ),
-                                DataColumn(
-                                    label=Text(
-                                        "Date d'expiration",
-                                        weight=FontWeight.BOLD,
-                                        color="white",
-                                    )
-                                ),
-                                DataColumn(
-                                    label=Text(
-                                        "Prix d'achat",
-                                        weight=FontWeight.BOLD,
-                                        color="white",
-                                    ),
-                                    numeric=True,
-                                ),
-                                DataColumn(
-                                    label=Text(
-                                        "Prix de vente",
-                                        weight=FontWeight.BOLD,
-                                        color="white",
-                                    ),
-                                    numeric=True,
-                                ),
-                                DataColumn(
-                                    label=Text(
-                                        "Stock", weight=FontWeight.BOLD, color="white"
-                                    ),
-                                    numeric=True,
-                                ),
-                                DataColumn(
-                                    label=Text(
-                                        "Actions", weight=FontWeight.BOLD, color="white"
-                                    )
-                                ),
-                            ],
-                            rows=list(self.__products()),
-                        ),
-                    ],
+                    controls=[self.data_table],
                 ),
+            ),
+            Row(
+                alignment=MainAxisAlignment.CENTER,
+                controls=[
+                    Button(
+                        "Page Précédente",
+                        on_click=self.__previous_page,
+                        disabled=self.current_page == 0,
+                        elevation=1,
+                        style=ButtonStyle(
+                            shape=RoundedRectangleBorder(10),
+                            color="white",
+                            bgcolor="blue",
+                        ),
+                    ),
+                    Text(f"Page {self.current_page + 1} sur {self.total_pages}"),
+                    Button(
+                        "Page Suivante",
+                        on_click=self.__next_page,
+                        disabled=self.current_page >= self.total_pages - 1,
+                        elevation=1,
+                        style=ButtonStyle(
+                            shape=RoundedRectangleBorder(10),
+                            color="white",
+                            bgcolor="blue",
+                        ),
+                    ),
+                ],
             ),
         ]
 
-    def __products(self):
-        for medoc in list_medocs_for_preview:
+    async def __restore_search_bar(self):
+        self.search_bar.value = ""
+        self.search_bar.update()
+        self.data_table.rows = list(self.__products())
+        await self.data_table.update_async()
+
+    async def __search_medoc(self):
+        products_founds = db.get_medocs_for_list_preview_by_containing_name(
+            self.search_bar.value
+        )
+        if products_founds:
+            self.data_table.rows = list(self.__products_searched(products_founds))
+            await self.data_table.update_async()
+        else:
+            self.page.snack_bar = SnackBar(Text("Aucun produit trouvé"), open=True)
+        await self.page.update_async()
+
+    def __products_searched(self, products_founds):
+        for medoc in products_founds:
+            try:
+                quantite = db.get_medoc_quantity_by_id(
+                    db.get_medoc_id_by_name(medoc[0])
+                )
+            except:
+                quantite = 0
             yield DataRow(
                 cells=[
                     DataCell(Text(medoc[0])),
@@ -257,10 +315,241 @@ class ProduitsView(Column):
                     DataCell(Text(medoc[3])),
                     DataCell(Text(medoc[4])),
                     DataCell(Text(medoc[5])),
-                    DataCell(Text("0")),
-                    DataCell(IconButton(Icons.EDIT, icon_color="blue")),
+                    DataCell(Text(str(quantite))),
+                    DataCell(
+                        IconButton(
+                            Icons.EDIT,
+                            icon_color="blue",
+                            on_click=self.__handler_edit_button,
+                        )
+                    ),
                 ]
             )
+
+    def __products(self):
+        start_index = self.current_page * self.items_per_page
+        end_index = start_index + self.items_per_page
+        for medoc in list_medocs_for_preview[start_index:end_index]:
+            try:
+                quantite = db.get_medoc_quantity_by_id(
+                    db.get_medoc_id_by_name(medoc[0])
+                )
+            except:
+                quantite = 0
+            yield DataRow(
+                cells=[
+                    DataCell(Text(medoc[0])),
+                    DataCell(Text(medoc[1])),
+                    DataCell(Text(medoc[2])),
+                    DataCell(Text(medoc[3])),
+                    DataCell(Text(medoc[4])),
+                    DataCell(Text(medoc[5])),
+                    DataCell(Text(str(quantite))),
+                    DataCell(
+                        IconButton(
+                            Icons.EDIT,
+                            icon_color="blue",
+                            on_click=self.__handler_edit_button,
+                        )
+                    ),
+                ]
+            )
+
+    def __next_page(self, e):
+        if self.current_page < self.total_pages - 1:
+            self.current_page += 1
+            self.__update_table()
+
+    def __previous_page(self, e):
+        if self.current_page > 0:
+            self.current_page -= 1
+            self.__update_table()
+
+    def __update_table(self):
+        self.data_table.rows = list(self.__products())
+        self.controls[-1].controls[
+            1
+        ].value = f"Page {self.current_page + 1} sur {self.total_pages}"
+        self.controls[-1].controls[0].disabled = self.current_page == 0
+        self.controls[-1].controls[2].disabled = (
+            self.current_page >= self.total_pages - 1
+        )
+        self.data_table.update()
+        self.page.update()
+
+    def __handler_edit_button(self, e: ControlEvent):
+        m = []
+        for medoc in e.control.parent.parent.cells[:-1]:
+            m.append(medoc.content.value)
+        self.__modifie_medoc(m)
+
+    def __modifie_medoc(self, medoc: list | list):
+        self.ancien_nom = medoc[0].strip().upper() if medoc[0] else " "
+        self.nom = CustomTextField(
+            label="Nom du produit",
+            height=60,
+            value=medoc[0],
+        )
+        self.forme = CustomTextField(
+            label="Forme du produit", height=60, value=medoc[1]
+        )
+        self.prix_achat = CustomTextField(
+            label="Prix d'achat",
+            input_filter=InputFilter(regex_string=r"^(\d*\.?\d+|\d+\.?\d*|\d*)$"),
+            value=medoc[4],
+            height=60,
+        )
+        self.prix_vente = CustomTextField(
+            label="Prix de vente",
+            input_filter=InputFilter(regex_string=r"^(\d*\.?\d+|\d+\.?\d*|\d*)$"),
+            value=medoc[5],
+            height=60,
+        )
+        self.current_date = datetime.datetime.now()
+        self.stock_quantite = CustomTextField(
+            label="Stock",
+            input_filter=InputFilter(regex_string=r"^(\d*\.?\d+|\d+\.?\d*|\d*)$"),
+            value=medoc[6],
+            height=60,
+        )
+        self.date_field = CustomTextField(
+            label="Date d'expiration",
+            read_only=True,
+            height=60,
+            value=str(medoc[3]),
+            prefix_icon=Icon(Icons.CALENDAR_TODAY, color="black"),
+            on_click=lambda e: self.page.open(
+                DatePicker(
+                    first_date=datetime.datetime(year=2010, month=1, day=1),
+                    last_date=datetime.datetime(year=2050, month=1, day=1),
+                    current_date=self.current_date,
+                    cancel_text="Annuler",
+                    on_change=self.__select_date,
+                )
+            ),
+        )
+        self.button_mettre_a_jour = Button(
+            "Mettre à jour",
+            elevation=1,
+            style=ButtonStyle(
+                shape=RoundedRectangleBorder(10),
+                color="white",
+                bgcolor="blue",
+            ),
+            width=200,
+            on_click=lambda e: self.page.run_thread(
+                self.__update_medoc_accounts_produit_db
+            ),
+        )
+        self.dialog = AlertDialog(
+            scrollable=True,
+            adaptive=True,
+            title=Text("Modifier un produit"),
+            bgcolor="#f0f0f0",
+            content=Column(
+                expand=True,
+                controls=[
+                    self.nom,
+                    self.forme,
+                    self.prix_achat,
+                    self.prix_vente,
+                    self.date_field,
+                    self.stock_quantite,
+                ],
+            ),
+            actions=[
+                Button(
+                    "Supprimer",
+                    elevation=1,
+                    style=ButtonStyle(
+                        shape=RoundedRectangleBorder(10),
+                        color="white",
+                        bgcolor="red",
+                    ),
+                    width=200,
+                    on_click=lambda e: self.page.run_thread(
+                        self.__delete_medoc_accounts_produit_db
+                    ),
+                ),
+                self.button_mettre_a_jour,
+            ],
+        )
+
+        self.page.open(self.dialog)
+        self.page.update()
+
+    def __select_date(self, e: ControlEvent):
+        self.current_date = e.control.value
+        self.date_field.value = str(e.control.value.strftime("%d-%m-%Y"))
+        self.date_field.update()
+
+    def __update_medoc_accounts_produit_db(self):
+        self.page.run_task(self.__update_medoc_accounts_produit_db_async)
+
+    async def __update_medoc_accounts_produit_db_async(self):
+        if (
+            self.nom.value
+            and self.prix_achat.value
+            and self.prix_vente.value
+            and self.forme.value
+        ):
+            try:
+                db.update_medoc_to_accounts_produit_by_medoc_name(
+                    medoc_name=self.ancien_nom,
+                    fields=(
+                        "nom",
+                        "marque",
+                        "prix_achat",
+                        "prix_vente",
+                        "date_dexpiration",
+                    ),
+                    values=(
+                        self.nom.value.upper().strip(),
+                        self.forme.value.upper().strip(),
+                        self.prix_achat.value,
+                        self.prix_vente.value,
+                        self.date_field.value,
+                    ),
+                )
+                medoc_id = db.get_medoc_id_by_name(self.nom.value)
+                db.update_medoc_quantity_by_id(medoc_id, int(self.stock_quantite.value))
+                db.update_medoc_designation_by_id(medoc_id, self.forme.value)
+            except:
+                self.page.snack_bar = SnackBar(
+                    Text("Une erreur est survenue, veuillez ressayer !"), open=True
+                )
+            else:
+                update_lists_medocs()
+                self.page.close(self.dialog)
+                self.page.snack_bar = SnackBar(
+                    Text("Le produit a été modifié avec succès"), open=True
+                )
+                self.data_table.rows = list(self.__products())
+                await self.data_table.update_async()
+            finally:
+                await self.page.update_async()
+
+    def __delete_medoc_accounts_produit_db(self):
+        self.page.run_task(self.__delete_medoc_accounts_produit_db_async)
+
+    async def __delete_medoc_accounts_produit_db_async(self):
+        if self.nom.value:
+            try:
+                db.delete_medoc(self.nom.value)
+            except:
+                self.page.snack_bar = SnackBar(
+                    Text("Une erreur est survenue, veuillez ressayer !"), open=True
+                )
+            else:
+                update_lists_medocs()
+                self.page.close(self.dialog)
+                self.page.snack_bar = SnackBar(
+                    Text("Le produit a été supprimé avec succès"), open=True
+                )
+                self.data_table.rows = list(self.__products())
+                await self.data_table.update_async()
+            finally:
+                await self.page.update_async()
 
 
 class EntreeStockView(Column):
@@ -662,7 +951,7 @@ class PrincipalView(Column):
             label="Date",
             width=160,
             read_only=True,
-            value=str(self.current_date.strftime("%d/%m/%Y")),
+            value=str(self.current_date.strftime("%d-%m-%Y")),
             prefix_icon=Icon(Icons.CALENDAR_TODAY, color="black"),
             on_click=lambda e: self.page.open(
                 DatePicker(
@@ -778,6 +1067,9 @@ class PrincipalView(Column):
                                         bgcolor="blue",
                                     ),
                                     width=170,
+                                    on_click=lambda e: self.page.run_task(
+                                        self.finaliser_vente
+                                    ),
                                 ),
                             ],
                         ),
@@ -850,7 +1142,7 @@ class PrincipalView(Column):
 
     def __select_date(self, e: ControlEvent):
         self.current_date = e.control.value
-        self.date_field.value = str(e.control.value.strftime("%d/%m/%Y"))
+        self.date_field.value = str(e.control.value.strftime("%d-%m-%Y"))
         self.date_field.update()
 
     def handler_change_taux(self, taux):
@@ -970,7 +1262,7 @@ class PrincipalView(Column):
     def __renitialiser_panier(self, e):
         self.list_medocs_panier.controls = []
         self.nom_client.value = ""
-        self.date_field.value = str(self.current_date.strftime("%d/%m/%Y"))
+        self.date_field.value = str(self.current_date.strftime("%d-%m-%Y"))
         self.list_medocs_panier.update()
         self.nom_client.update()
         self.date_field.update()
@@ -1083,8 +1375,8 @@ class PrincipalView(Column):
 
     def __select_medoc_from_suggestion(self, e: AutoCompleteSelectEvent):
         medoc = db.get_medocs_by_name(e.selection.key)
-        self.prix_unitaire.value = str(medoc[0][4])
-
+        self.prix_unitaire.value = str(medoc[0][6])
+        self.forme.value = medoc[0][11] or ""
         self.prix_total.value = str(
             round(float(self.prix_unitaire.value) * float(self.quantite.value), 3)
         )
@@ -1130,6 +1422,48 @@ class PrincipalView(Column):
         self.nom_client.update()
         self.list_medocs_panier.update()
         self.__calcul_totaux()
+
+    async def finaliser_vente(self):
+        for medoc in (
+            self.list_medocs_panier.controls if self.list_medocs_panier.controls else []
+        ):
+            medoc_id = db.get_medoc_id_by_name(medoc.nom.value)
+            medoc_quantite = db.get_medoc_quantity_by_id(medoc_id)
+            if medoc_quantite < int(medoc.quantite.value) or medoc_quantite == 0:
+                self.page.snack_bar = SnackBar(
+                    Text(
+                        f"La quantité de {medoc.nom.value} disponible est insuffisante\nIl reste {medoc_quantite} en stock"
+                    ),
+                    open=True,
+                    duration=6000,
+                )
+                await self.page.update_async()
+                return
+            try:
+                db.add_new_medoc_to_accounts_mouvement_out(
+                    designation=medoc.forme.value or "",
+                    qte=int(medoc.quantite.value),
+                    pu=float(medoc.prix_unitaire.value),
+                    produit_id=medoc_id,
+                    pv=float(medoc.prix_total.value),
+                )
+                db.update_medoc_quantity_by_id(
+                    id=medoc_id,
+                    new_quantity=medoc_quantite - int(medoc.quantite.value),
+                )
+            except:
+                self.page.snack_bar = SnackBar(
+                    Text("Une erreur est survenue, veuillez ressayer !"), open=True
+                )
+
+            else:
+                self.__renitialiser_panier(None)
+                self.page.snack_bar = SnackBar(
+                    Text("La vente a été enregistrée avec succès"), open=True
+                )
+
+            finally:
+                await self.page.update_async()
 
 
 class Accueil(ft.Container):
@@ -1336,7 +1670,7 @@ class Accueil(ft.Container):
 
     def __select_date(self, e: ControlEvent):
         self.current_date = e.control.value
-        self.date_field.value = str(e.control.value.strftime("%d/%m/%Y"))
+        self.date_field.value = str(e.control.value.strftime("%d-%m-%Y"))
         self.date_field.update()
 
     def __add_new_product(self, e):
@@ -1361,7 +1695,7 @@ class Accueil(ft.Container):
             label="Date d'expiration",
             read_only=True,
             height=60,
-            value=str(self.current_date.strftime("%d/%m/%Y")),
+            value=str(self.current_date.strftime("%d-%m-%Y")),
             prefix_icon=Icon(Icons.CALENDAR_TODAY, color="black"),
             on_click=lambda e: self.page.open(
                 DatePicker(
@@ -1388,6 +1722,7 @@ class Accueil(ft.Container):
             on_click=lambda e: self.page.run_thread(self.__add_medoc_to_db),
         )
         self.dialog = AlertDialog(
+            scrollable=True,
             adaptive=True,
             title=Text("Ajouter un nouveau produit"),
             bgcolor="#f0f0f0",
@@ -1504,7 +1839,7 @@ class Accueil(ft.Container):
                         self.forme.value.upper(),
                         datetime.datetime.now(),
                         datetime.datetime.strptime(
-                            self.date_field.value, "%d/%m/%Y"
+                            self.date_field.value, "%d-%m-%Y"
                         ).date(),
                         float(self.prix_achat.value),
                         float(self.prix_vente.value),
@@ -1528,7 +1863,7 @@ class Accueil(ft.Container):
         self.forme.value = ""
         self.prix_achat.value = "0"
         self.prix_vente.value = "0"
-        self.date_field.value = str(self.current_date.strftime("%d/%m/%Y"))
+        self.date_field.value = str(self.current_date.strftime("%d-%m-%Y"))
         self.db_file_picked.value = " "
         self.nom.update()
         self.forme.update()
@@ -1546,14 +1881,115 @@ class Accueil(ft.Container):
         self.__delete_draft(e)
 
 
+class LoginView(ft.Container):
+    def __init__(self, page: ft.Page):
+        super().__init__()
+        self.page = page
+        self.expand = True
+        self.alignment = alignment.center
+        self.padding = padding.symmetric(vertical=50, horizontal=50)
+        self.image = DecorationImage(
+            src=str(pathlib.Path(__file__).parent.resolve()).replace("\\", "/")
+            + "/assets/images/bg_image.jpg",
+            fit=ImageFit.COVER,
+            color_filter=ColorFilter(
+                color=Colors.with_opacity(0.5, "black"), blend_mode=BlendMode.MULTIPLY
+            ),
+        )
+        self.username = CustomTextField(label="Nom d'utilisateur", height=60)
+        self.password = CustomTextField(
+            label="Mot de passe", password=True, can_reveal_password=True, height=60
+        )
+        self.button = Button(
+            "Connexion",
+            elevation=1,
+            style=ButtonStyle(
+                shape=RoundedRectangleBorder(10),
+                color="white",
+                bgcolor="blue",
+            ),
+            height=60,
+            on_click=self.__se_connecter,
+        )
+        self.content = Container(
+            width=500,
+            padding=padding.symmetric(vertical=20, horizontal=30),
+            border_radius=border_radius.all(10),
+            bgcolor="#C4CAFF",
+            content=Column(
+                alignment=MainAxisAlignment.CENTER,
+                horizontal_alignment=CrossAxisAlignment.STRETCH,
+                controls=[
+                    Image(
+                        src=str(pathlib.Path(__file__).parent.resolve()).replace(
+                            "\\", "/"
+                        )
+                        + "/assets/images/logo_shekinah_.png",
+                        height=150,
+                    ),
+                    Text(
+                        value="Pharmacie Shekinah",
+                        size=20,
+                        color="black",
+                        text_align="center",
+                        weight="bold",
+                    ),
+                    self.username,
+                    self.password,
+                    self.button,
+                ],
+            ),
+        )
+
+    def __se_connecter(self, e):
+        if self.page.client_storage.contains_key("SKEKI"):
+            password = self.page.client_storage.get("SKEKI")
+            if password == self.password.value:
+                self.page.go("/home")
+            else:
+                self.page.snack_bar = SnackBar(
+                    Text("Mot de passe incorrect"), open=True
+                )
+        else:
+            self.page.client_storage.set("SKEKI", self.password.value.strip())
+
+
 def main(page: ft.Page):
+    def on_route_change(route: RouteChangeEvent):
+        page.views.clear()
+        page.views.append(
+            ft.View(
+                "/",
+                [
+                    LoginView(page),
+                ],
+                padding=padding.all(0),
+            )
+        )
+        if page.route == "/home":
+            page.views.append(
+                ft.View(
+                    "/home",
+                    [
+                        Accueil(page),
+                    ],
+                    padding=padding.all(0),
+                )
+            )
+        page.update()
+
+    def on_view_pop(view):
+        page.views.pop()
+        top_view = page.views[-1]
+        page.go(top_view.route)
+
     def handle_window_event(e):
         if e.data == "close":
             page.open(confirm_dialog)
 
     def yes_click(e):
         page.window.destroy()
-        page.update()
+        # page.update()
 
     def no_click(e):
         page.close(confirm_dialog)
@@ -1582,9 +2018,9 @@ def main(page: ft.Page):
         actions_alignment=ft.MainAxisAlignment.END,
     )
 
-    home = Accueil(page)
-    page.add(home)
-    page.update()
+    page.on_route_change = on_route_change
+    page.on_view_pop = on_view_pop
+    page.go(page.route)
 
 
 ft.app(

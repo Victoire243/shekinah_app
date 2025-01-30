@@ -1,4 +1,5 @@
 import sqlite3
+import datetime
 
 
 class DBUtils:
@@ -6,11 +7,6 @@ class DBUtils:
         self.db_path = db_path
         self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self.cursor = self.conn.cursor()
-
-    def create_table(self, table_name, columns):
-        columns_str = ", ".join(columns)
-        self.cursor.execute(f"CREATE TABLE {table_name} ({columns_str})")
-        self.conn.commit()
 
     def insert(self, table_name, values):
         values_str = ", ".join([f"'{v}'" for v in values])
@@ -42,13 +38,18 @@ class DBUtils:
             "accounts_produit",
             [
                 "nom",
-                "designation_entree",
+                "marque",
                 "date_entree",
                 "date_dexpiration",
                 "prix_achat",
                 "prix_vente",
             ],
         )
+
+    def get_medocs_for_list_preview_by_containing_name(self, name: str):
+        return self.cursor.execute(
+            f"SELECT nom, marque, date_entree, date_dexpiration, prix_achat, prix_vente FROM accounts_produit WHERE nom LIKE '%{name.upper().strip()}%'"
+        ).fetchall()
 
     def get_medocs_by_name(self, name: str):
         return self.cursor.execute(
@@ -100,8 +101,10 @@ class DBUtils:
         )
         self.add_new_medoc_to_accounts_mouvement(medoc)
 
-    def delete_medoc(self, name):
-        self.cursor.execute(f"DELETE FROM accounts_produit WHERE nom = '{name}'")
+    def delete_medoc(self, name: str):
+        self.cursor.execute(
+            f"DELETE FROM accounts_produit WHERE nom = '{name.upper().strip()}'"
+        )
         self.conn.commit()
 
     def get_all_medocs_names(self):
@@ -110,14 +113,31 @@ class DBUtils:
     def get_all_medocs_names_as_list(self):
         return [medoc[0] for medoc in self.get_all_medocs_names()]
 
-    def get_medoc_quantity(self, name):
+    def get_medoc_quantity(self, name: str):
         return self.cursor.execute(
-            f"SELECT quantite FROM accounts_produit WHERE nom = '{name}'"
+            f"SELECT quantite FROM accounts_produit WHERE nom = '{name.upper().strip()}'"
         ).fetchone()[0]
 
-    def update_medoc_quantity(self, name, quantity):
+    def get_medoc_quantity_by_id(self, id: int | str):
+        result = self.cursor.execute(
+            f"SELECT qte FROM accounts_mouvement WHERE produit_id = {id}"
+        ).fetchone()
+        return result[0] if result else 0
+
+    def get_medoc_id_by_name(self, name: str):
+        return self.cursor.execute(
+            f"SELECT id FROM accounts_produit WHERE nom = '{name.upper().strip()}'"
+        ).fetchone()[0]
+
+    def update_medoc_quantity_by_id(self, id: int | str, new_quantity: int | str):
         self.cursor.execute(
-            f"UPDATE accounts_produit SET quantite = '{quantity}' WHERE nom = '{name}'"
+            f"UPDATE accounts_mouvement SET qte = {new_quantity} WHERE produit_id = {id}"
+        )
+        self.conn.commit()
+
+    def update_medoc_designation_by_id(self, id: int | str, new_description: str):
+        self.cursor.execute(
+            f"UPDATE accounts_mouvement SET designation = '{new_description}' WHERE produit_id = {id}"
         )
         self.conn.commit()
 
@@ -223,6 +243,35 @@ class DBUtils:
         self.insert_fields(
             "accounts_mouvement",
             ("date", "designation", "qte", "pu", "typ", "produit_id", "pv"),
+            medoc,
+        )
+
+    def update_medoc_to_accounts_produit_by_medoc_name(
+        self, medoc_name: str, fields, values
+    ):
+        fields_str = ", ".join(
+            [f"{field} = '{value}'" for field, value in zip(fields, values)]
+        )
+        self.cursor.execute(
+            f"UPDATE accounts_produit SET {fields_str} WHERE nom = '{medoc_name}'"
+        )
+        self.conn.commit()
+
+    def add_new_medoc_to_accounts_mouvement_out(
+        self, designation, qte, pu, produit_id, pv
+    ):
+        medoc = (
+            designation,
+            qte,
+            pu,
+            "sortie",
+            produit_id,
+            datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            pv,
+        )
+        self.insert_fields(
+            "accounts_mouvement",
+            ("designation", "qte", "pu", "typ", "produit_id", "date", "pv"),
             medoc,
         )
 
