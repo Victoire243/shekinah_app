@@ -5,13 +5,17 @@ from components.CustomDraftButton import CustomDraftButton
 from components.CustomTextField import CustomTextField
 from utils.nombre_to_chiffre import number_to_words
 from models.medicament_entree import MedicamentEntree
-import pathlib
+from utils.impression_facture import generer_facture
+from views.login_view import LoginView
+from models.medicament import Medicament
+from pathlib import Path
 from utils.speaker import Speaker
 from flet import *
 from db.db_utils import DBUtils
+from threading import Thread
 
 current_directory = (
-    str(pathlib.Path(__file__).parent.resolve()).replace("\\", "/")
+    str(Path(__file__).parent.resolve()).replace("\\", "/")
     + "/assets/db/db_test.sqlite3"
 )
 
@@ -25,81 +29,6 @@ def update_lists_medocs():
     global list_medocs_names
     list_medocs_names = db.get_all_medocs_list()
     list_medocs_for_preview = db.get_medocs_for_list_preview()
-
-
-class Medicament(Container):
-    def __init__(
-        self,
-        nom,
-        quantite,
-        forme,
-        prix_unitaire,
-        prix_total,
-        medoc_delete,
-        calcul_totaux=None,
-    ):
-        super().__init__()
-        self.__calcul_totaux = calcul_totaux
-        self.nom = Text(nom, weight=FontWeight.BOLD, col=4)
-        self.quantite = CustomTextField(
-            input_filter=NumbersOnlyInputFilter(),
-            col=1,
-            value=quantite,
-            on_change=self.__update_prix_total,
-        )
-        self.forme = CustomTextField(col=2, value=forme)
-        self.prix_unitaire = CustomTextField(
-            input_filter=InputFilter(regex_string=r"^(\d*\.?\d+|\d+\.?\d*|\d*)$"),
-            col=2,
-            value=prix_unitaire,
-            on_change=self.__update_prix_total,
-        )
-        self.prix_total = Text(prix_total, weight=FontWeight.BOLD)
-        self.medoc_delete = medoc_delete
-        self.border_radius = border_radius.all(5)
-        self.border = border.all(width=1, color="white")
-        self.margin = margin.only(left=20, right=20, top=5, bottom=5)
-        self.bgcolor = "#DBDBDB"
-        self.padding = padding.all(10)
-        self.content = ResponsiveRow(
-            controls=[
-                self.nom,
-                self.quantite,
-                self.forme,
-                self.prix_unitaire,
-                Row(
-                    col=3,
-                    controls=[
-                        Row(
-                            expand=True,
-                            controls=[
-                                self.prix_total,
-                                Text("FC"),
-                            ],
-                        ),
-                        IconButton(
-                            icon=Icons.DELETE,
-                            icon_color="red",
-                            on_click=self.__delete,
-                        ),
-                    ],
-                ),
-            ]
-        )
-
-    def __update_prix_total(self, e):
-        self.prix_total.value = str(
-            round(
-                float(self.prix_unitaire.value if self.prix_unitaire.value else 0)
-                * float(self.quantite.value if self.quantite.value else 0),
-                3,
-            )
-        )
-        self.prix_total.update()
-        self.__calcul_totaux()
-
-    def __delete(self, e):
-        self.medoc_delete(self)
 
 
 class ProduitsView(Column):
@@ -940,7 +869,7 @@ class PrincipalView(Column):
             input_filter=InputFilter(regex_string=r"^(\d*\.?\d+|\d+\.?\d*|\d*)$"),
             on_change=lambda e: self.__calcul_totaux(),
         )
-
+        self.page.on_keyboard_event = self.__handler_keyboard_key
         self.nom_client = CustomTextField(
             label="Nom du client",
             prefix_icon=Icon(Icons.PERSON, color="black"),
@@ -1130,6 +1059,9 @@ class PrincipalView(Column):
                                                 bgcolor="blue",
                                             ),
                                             width=170,
+                                            on_click=lambda e: self.page.run_task(
+                                                self.finaliser_vente
+                                            ),
                                         ),
                                     ],
                                 ),
@@ -1224,6 +1156,7 @@ class PrincipalView(Column):
             self.list_medocs_panier.controls = e
             self.list_medocs_panier.update()
             self.__reinitialiser_entree()
+            return
         if self.produit_designation.selected_index and db.is_medoc_exists(
             self.produit_designation.suggestions[
                 self.produit_designation.selected_index
@@ -1277,19 +1210,31 @@ class PrincipalView(Column):
             input_filter=NumbersOnlyInputFilter(),
             col=1,
             on_change=self.__update_prix_total,
+            on_click=self.add_medoce_panier,
         )
-        self.forme = CustomTextField(label="Forme", col=2)
+        self.forme = CustomTextField(
+            label="Forme", col=2, on_click=self.add_medoce_panier
+        )
         self.prix_unitaire = CustomTextField(
             label="Prix",
             value="0",
             input_filter=InputFilter(regex_string=r"^(\d*\.?\d+|\d+\.?\d*|\d*)$"),
             col=2,
             on_change=self.__update_prix_total,
+            on_click=self.add_medoce_panier,
         )
         self.prix_total = Text("0", weight=FontWeight.BOLD)
         self.produit_designation = AutoComplete(
             suggestions=list(self.__autocomplete_suggestions()),
             on_select=self.__select_medoc_from_suggestion,
+        )
+        self.container_designation = Container(
+            padding=padding.only(left=10, right=10, bottom=5),
+            bgcolor="white",
+            border_radius=border_radius.all(10),
+            col=4,
+            height=40,
+            content=self.produit_designation,
         )
 
         return Container(
@@ -1302,14 +1247,7 @@ class PrincipalView(Column):
                     Text("Forme", col=2),
                     Text("Prix Unitaire", col=2),
                     Text("Prix total", col=3),
-                    Container(
-                        padding=padding.only(left=10, right=10, bottom=5),
-                        bgcolor="white",
-                        border_radius=border_radius.all(10),
-                        col=4,
-                        height=40,
-                        content=self.produit_designation,
-                    ),
+                    self.container_designation,
                     self.quantite,
                     self.forme,
                     self.prix_unitaire,
@@ -1332,6 +1270,7 @@ class PrincipalView(Column):
                                     bgcolor="blue",
                                 ),
                                 on_click=self.add_medoce_panier,
+                                autofocus=True,
                             ),
                         ],
                     ),
@@ -1350,15 +1289,20 @@ class PrincipalView(Column):
             else float(self.taux_dollar) if self.taux_dollar else 1
         )
         total = 0
+        total_sans_charge_reduc = 0
         for medoc in self.list_medocs_panier.controls:
             total += (
+                float(medoc.prix_total.value if medoc.prix_total.value else 0) / taux
+            )
+            total_sans_charge_reduc += (
                 float(medoc.prix_total.value if medoc.prix_total.value else 0) / taux
             )
         total += float(
             self.charges_connexes.value if self.charges_connexes.value else 0
         ) - float(self.reduction_accordee.value if self.reduction_accordee.value else 0)
+
         self.totaux.value = (
-            str(round(total, 3)) + " FC"
+            str(round(total_sans_charge_reduc, 3)) + " FC"
             if self.devises.value == "FC"
             else str(round(total, 3)) + " $"
         )
@@ -1401,6 +1345,11 @@ class PrincipalView(Column):
         self.forme.value = ""
         self.charges_connexes.value = "0"
         self.reduction_accordee.value = "0"
+        self.produit_designation = AutoComplete(
+            suggestions=list(self.__autocomplete_suggestions()),
+            on_select=self.__select_medoc_from_suggestion,
+        )
+        self.container_designation.content = self.produit_designation
 
         self.charges_connexes.update()
         self.reduction_accordee.update()
@@ -1408,7 +1357,7 @@ class PrincipalView(Column):
         self.forme.update()
         self.quantite.update()
         self.prix_unitaire.update()
-        self.produit_designation.update()
+        self.container_designation.update()
 
     def __speack(self):
         speaker = Speaker()
@@ -1429,7 +1378,10 @@ class PrincipalView(Column):
         ):
             medoc_id = db.get_medoc_id_by_name(medoc.nom.value)
             medoc_quantite = db.get_medoc_quantity_by_id(medoc_id)
-            if medoc_quantite < int(medoc.quantite.value) or medoc_quantite == 0:
+            if (
+                float(medoc_quantite) < float(medoc.quantite.value)
+                or medoc_quantite == 0
+            ):
                 self.page.snack_bar = SnackBar(
                     Text(
                         f"La quantité de {medoc.nom.value} disponible est insuffisante\nIl reste {medoc_quantite} en stock"
@@ -1438,7 +1390,12 @@ class PrincipalView(Column):
                     duration=6000,
                 )
                 await self.page.update_async()
-                return
+        num_facture = db.get_last_facture_id() + 1
+        for medoc in (
+            self.list_medocs_panier.controls if self.list_medocs_panier.controls else []
+        ):
+            medoc_id = db.get_medoc_id_by_name(medoc.nom.value)
+            medoc_quantite = db.get_medoc_quantity_by_id(medoc_id)
             try:
                 db.add_new_medoc_to_accounts_mouvement_out(
                     designation=medoc.forme.value or "",
@@ -1449,24 +1406,78 @@ class PrincipalView(Column):
                 )
                 db.update_medoc_quantity_by_id(
                     id=medoc_id,
-                    new_quantity=medoc_quantite - int(medoc.quantite.value),
+                    new_quantity=round(
+                        float(medoc_quantite) - int(medoc.quantite.value)
+                    ),
+                )
+                db.add_to_accounts_mouvement_facture(
+                    quantite=int(medoc.quantite.value),
+                    forme=medoc.forme.value or "",
+                    produit=medoc.nom.value,
+                    prix_unitaire=float(medoc.prix_unitaire.value),
+                    prix_total=float(medoc.prix_total.value),
+                    id_facture=num_facture,
+                    nom_client=self.nom_client.value,
+                    date=datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S"),
                 )
             except:
                 self.page.snack_bar = SnackBar(
                     Text("Une erreur est survenue, veuillez ressayer !"), open=True
                 )
-
+                self.page.update()
+                return
             else:
-                self.__renitialiser_panier(None)
                 self.page.snack_bar = SnackBar(
                     Text("La vente a été enregistrée avec succès"), open=True
                 )
+                self.page.update()
 
-            finally:
-                await self.page.update_async()
+        self.imprimer_facture(num_facture)
+
+    def imprimer_facture(self, num_facture):
+        liste_medocs_facture = [
+            ["N°", "QUANTITE", "FORME", "PRODUIT", "PRIX UNITAIRE", "PRIX TOTAL"]
+        ]
+        for index, medoc in enumerate(self.list_medocs_panier.controls, start=1):
+            liste_medocs_facture.append(
+                [
+                    str(index),
+                    medoc.quantite.value,
+                    medoc.forme.value,
+                    medoc.nom.value,
+                    medoc.prix_unitaire.value,
+                    medoc.prix_total.value,
+                ]
+            )
+        facture_thread = Thread(
+            target=generer_facture,
+            kwargs=dict(
+                list_medicaments=liste_medocs_facture,
+                prix_total=self.totaux.value + " " + self.devises.value,
+                reduction=self.reduction_accordee.value + " " + self.devises.value,
+                charges_connexes=self.charges_connexes.value + " " + self.devises.value,
+                date=datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S"),
+                nom_client=self.nom_client.value,
+                num_facture=num_facture,
+                bar_code="F-" + str(num_facture) + "-" + str(self.current_date.year),
+                montant_final=self.net_a_payer.value,
+                montant_en_lettres=self.montant_chiffre.value
+                + " "
+                + self.devises.value,
+            ),
+        )
+        facture_thread.start()
+        self.__renitialiser_panier(None)
+
+    def __handler_keyboard_key(self, e: KeyboardEvent):
+        match e.key:
+            case "Escape":
+                self.__reinitialiser_entree(None)
+            case "Enter":
+                self.add_medoce_panier(None)
 
 
-class Accueil(ft.Container):
+class Accueil(Container):
     def __init__(self, page: ft.Page):
         super().__init__()
         self.page = page
@@ -1524,9 +1535,9 @@ class Accueil(ft.Container):
                     content=Row(
                         controls=[
                             Image(
-                                src=str(
-                                    pathlib.Path(__file__).parent.resolve()
-                                ).replace("\\", "/")
+                                src=str(Path(__file__).parent.resolve()).replace(
+                                    "\\", "/"
+                                )
                                 + "/assets/images/logo_shekinah_.png",
                                 height=70,
                             ),
@@ -1629,6 +1640,7 @@ class Accueil(ft.Container):
                             CustomElevatedButton(
                                 text="Deconnexion",
                                 icon=Icons.LOGOUT,
+                                on_click=lambda e: self.page.go("/"),
                             ),
                         ],
                     ),
@@ -1651,7 +1663,11 @@ class Accueil(ft.Container):
                     self.__change_view_to_entree_stock,
                 )
             case "Ventes":
-                self.current_view.content = self.__ventes_view
+                self.current_view.content = VenteView(
+                    self.page,
+                    self.__add_new_product,
+                    self.__change_view_to_entree_stock,
+                )
             case "Clients":
                 self.current_view.content = self.__clients_view
         self.current_view.update()
@@ -1747,7 +1763,7 @@ class Accueil(ft.Container):
                                 icon_color="white",
                                 on_click=lambda e: self.file_picker.pick_files(
                                     dialog_title="Selectionner un fichier csv de base de données",
-                                    allowed_extensions=["csv", "png"],
+                                    allowed_extensions=["csv"],
                                     allow_multiple=False,
                                 ),
                             ),
@@ -1779,10 +1795,17 @@ class Accueil(ft.Container):
             self.db_file_picked.value = result.files[0].name
             self.db_file_picked.update()
             path = result.files[0].path
-        except:
-            pass
-        else:
-            pass
+            db.import_csv_to_db(path)
+            self.page.snack_bar = SnackBar(
+                Text("Les données du fichier CSV ont été importées avec succès"),
+                open=True,
+            )
+        except Exception as e:
+            self.page.snack_bar = SnackBar(
+                Text(f"Erreur lors de l'importation du fichier CSV: {e}"), open=True
+            )
+        finally:
+            self.page.update()
 
     def __add_draft(self, list_draft, nom_client, date):
         self.list_medocs_draft.controls.append(
@@ -1881,77 +1904,309 @@ class Accueil(ft.Container):
         self.__delete_draft(e)
 
 
-class LoginView(ft.Container):
-    def __init__(self, page: ft.Page):
+class VenteView(Column):
+    def __init__(
+        self, page: ft.Page, handler_entree_produit=None, handler_entree_stock=None
+    ):
         super().__init__()
         self.page = page
-        self.expand = True
-        self.alignment = alignment.center
-        self.padding = padding.symmetric(vertical=50, horizontal=50)
-        self.image = DecorationImage(
-            src=str(pathlib.Path(__file__).parent.resolve()).replace("\\", "/")
-            + "/assets/images/bg_image.jpg",
-            fit=ImageFit.COVER,
-            color_filter=ColorFilter(
-                color=Colors.with_opacity(0.5, "black"), blend_mode=BlendMode.MULTIPLY
+        self.handler_entree_produit = handler_entree_produit
+        self.handler_entree_stock = handler_entree_stock
+        self.current_page = 0
+        self.items_per_page = 50
+        self.horizontal_alignment = CrossAxisAlignment.STRETCH
+        self.total_items = len(
+            set(invoice[6] for invoice in db.get_all_mouvement_facture())
+        )
+        self.total_pages = (
+            self.total_items + self.items_per_page - 1
+        ) // self.items_per_page
+        self.search_bar = SearchBar(
+            bar_bgcolor="white",
+            bar_elevation=1,
+            bar_border_side=BorderSide(width=0),
+            width=250,
+            height=40,
+            view_shape=RoundedRectangleBorder(10),
+            bar_shape=RoundedRectangleBorder(10),
+            bar_hint_text="Rechercher...",
+            bar_leading=Icon(Icons.SEARCH, color="black"),
+            bar_trailing=[
+                IconButton(
+                    Icons.CLOSE,
+                    icon_color="black",
+                    icon_size=18,
+                    on_click=lambda e: self.page.run_task(self.__restore_search_bar),
+                )
+            ],
+            on_blur=lambda e: self.page.run_task(self.__search_invoice),
+        )
+        self.data_table = DataTable(
+            expand=True,
+            sort_column_index=0,
+            heading_row_color={ControlState.DEFAULT: "blue"},
+            sort_ascending=True,
+            data_row_color={ControlState.HOVERED: "blue"},
+            columns=[
+                DataColumn(
+                    label=Text(
+                        "Numéro de Facture",
+                        weight=FontWeight.BOLD,
+                        color="white",
+                    ),
+                ),
+                DataColumn(
+                    label=Text("Nom du Client", weight=FontWeight.BOLD, color="white")
+                ),
+                DataColumn(
+                    label=Text(
+                        "Date",
+                        weight=FontWeight.BOLD,
+                        color="white",
+                    )
+                ),
+                DataColumn(
+                    label=Text(
+                        "Montant Total",
+                        weight=FontWeight.BOLD,
+                        color="white",
+                    ),
+                    numeric=True,
+                ),
+                DataColumn(
+                    label=Text("Actions", weight=FontWeight.BOLD, color="white")
+                ),
+            ],
+            rows=list(self.__invoices()),
+        )
+        self.controls = [
+            Container(
+                bgcolor="black",
+                height=110,
+                border_radius=border_radius.only(top_left=15, top_right=15),
+                padding=padding.symmetric(horizontal=20, vertical=10),
+                content=Row(
+                    controls=[
+                        Text(
+                            "Liste des Factures",
+                            color="white",
+                            weight=FontWeight.BOLD,
+                            size=20,
+                        ),
+                        Row(
+                            controls=[
+                                self.search_bar,
+                                Button(
+                                    "+ Produit",
+                                    elevation=1,
+                                    style=ButtonStyle(
+                                        shape=RoundedRectangleBorder(10),
+                                        color="white",
+                                        bgcolor="blue",
+                                    ),
+                                    on_click=self.handler_entree_produit,
+                                ),
+                                Button(
+                                    "+ Entrée Stock",
+                                    elevation=1,
+                                    style=ButtonStyle(
+                                        shape=RoundedRectangleBorder(10),
+                                        color="white",
+                                        bgcolor="blue",
+                                    ),
+                                    on_click=self.handler_entree_stock,
+                                ),
+                                Button(
+                                    " ",
+                                    elevation=1,
+                                    style=ButtonStyle(
+                                        shape=RoundedRectangleBorder(10),
+                                        color="white",
+                                        bgcolor="white",
+                                    ),
+                                    icon=Icons.LOOP,
+                                    icon_color="blue",
+                                ),
+                            ],
+                        ),
+                    ],
+                    alignment=MainAxisAlignment.SPACE_BETWEEN,
+                ),
             ),
-        )
-        self.username = CustomTextField(label="Nom d'utilisateur", height=60)
-        self.password = CustomTextField(
-            label="Mot de passe", password=True, can_reveal_password=True, height=60
-        )
-        self.button = Button(
-            "Connexion",
-            elevation=1,
-            style=ButtonStyle(
-                shape=RoundedRectangleBorder(10),
-                color="white",
-                bgcolor="blue",
+            Container(
+                expand=True,
+                padding=padding.symmetric(horizontal=10, vertical=10),
+                content=Column(
+                    expand=True,
+                    horizontal_alignment=CrossAxisAlignment.STRETCH,
+                    scroll=ScrollMode.AUTO,
+                    controls=[self.data_table],
+                ),
             ),
-            height=60,
-            on_click=self.__se_connecter,
-        )
-        self.content = Container(
-            width=500,
-            padding=padding.symmetric(vertical=20, horizontal=30),
-            border_radius=border_radius.all(10),
-            bgcolor="#C4CAFF",
-            content=Column(
+            Row(
                 alignment=MainAxisAlignment.CENTER,
-                horizontal_alignment=CrossAxisAlignment.STRETCH,
                 controls=[
-                    Image(
-                        src=str(pathlib.Path(__file__).parent.resolve()).replace(
-                            "\\", "/"
-                        )
-                        + "/assets/images/logo_shekinah_.png",
-                        height=150,
+                    Button(
+                        "Page Précédente",
+                        on_click=self.__previous_page,
+                        disabled=self.current_page == 0,
+                        elevation=1,
+                        style=ButtonStyle(
+                            shape=RoundedRectangleBorder(10),
+                            color="white",
+                            bgcolor="blue",
+                        ),
                     ),
-                    Text(
-                        value="Pharmacie Shekinah",
-                        size=20,
-                        color="black",
-                        text_align="center",
-                        weight="bold",
+                    Text(f"Page {self.current_page + 1} sur {self.total_pages}"),
+                    Button(
+                        "Page Suivante",
+                        on_click=self.__next_page,
+                        disabled=self.current_page >= self.total_pages - 1,
+                        elevation=1,
+                        style=ButtonStyle(
+                            shape=RoundedRectangleBorder(10),
+                            color="white",
+                            bgcolor="blue",
+                        ),
                     ),
-                    self.username,
-                    self.password,
-                    self.button,
                 ],
             ),
-        )
+        ]
 
-    def __se_connecter(self, e):
-        if self.page.client_storage.contains_key("SKEKI"):
-            password = self.page.client_storage.get("SKEKI")
-            if password == self.password.value:
-                self.page.go("/home")
-            else:
-                self.page.snack_bar = SnackBar(
-                    Text("Mot de passe incorrect"), open=True
-                )
+    async def __restore_search_bar(self):
+        self.search_bar.value = ""
+        self.search_bar.update()
+        self.data_table.rows = list(self.__invoices())
+        await self.data_table.update_async()
+
+    async def __search_invoice(self):
+        invoices_found = db.get_all_mouvement_facture_by_id_facture(
+            self.search_bar.value
+        )
+        if invoices_found:
+            self.data_table.rows = list(self.__invoices_searched(invoices_found))
+            await self.data_table.update_async()
         else:
-            self.page.client_storage.set("SKEKI", self.password.value.strip())
+            self.page.snack_bar = SnackBar(Text("Aucune facture trouvée"), open=True)
+        await self.page.update_async()
+
+    def __invoices_searched(self, invoices_found):
+        unique_invoices = {}
+        for invoice in invoices_found:
+            if invoice[6] not in unique_invoices:
+                unique_invoices[invoice[6]] = invoice
+        for invoice in unique_invoices.values():
+            yield DataRow(
+                cells=[
+                    DataCell(Text(invoice[6])),
+                    DataCell(Text(invoice[7])),
+                    DataCell(Text(invoice[8])),
+                    DataCell(Text(invoice[5])),
+                    DataCell(
+                        IconButton(
+                            Icons.PRINT,
+                            icon_color="blue",
+                            on_click=lambda e, invoice_id=invoice[
+                                6
+                            ]: self.__print_invoice(invoice_id),
+                        )
+                    ),
+                ]
+            )
+
+    def __invoices(self):
+        start_index = self.current_page * self.items_per_page
+        end_index = start_index + self.items_per_page
+        invoices = db.get_all_mouvement_facture()[start_index:end_index]
+        unique_invoices = {}
+        for invoice in invoices:
+            if invoice[6] not in unique_invoices:
+                unique_invoices[invoice[6]] = {"invoice": invoice, "total": 0}
+            unique_invoices[invoice[6]]["total"] += float(invoice[5])
+        for invoice_data in unique_invoices.values():
+            invoice = invoice_data["invoice"]
+            total = invoice_data["total"]
+            yield DataRow(
+                cells=[
+                    DataCell(Text(invoice[6])),
+                    DataCell(Text(invoice[7])),
+                    DataCell(Text(invoice[8])),
+                    DataCell(Text(str(total))),
+                    DataCell(
+                        IconButton(
+                            Icons.PRINT,
+                            icon_color="blue",
+                            on_click=lambda e, invoice_id=invoice[
+                                6
+                            ]: self.__print_invoice(invoice_id),
+                        )
+                    ),
+                ]
+            )
+
+    def __next_page(self, e):
+        if self.current_page < self.total_pages - 1:
+            self.current_page += 1
+            self.__update_table()
+
+    def __previous_page(self, e):
+        if self.current_page > 0:
+            self.current_page -= 1
+            self.__update_table()
+
+    def __update_table(self):
+        self.data_table.rows = list(self.__invoices())
+        self.controls[-1].controls[
+            1
+        ].value = f"Page {self.current_page + 1} sur {self.total_pages}"
+        self.controls[-1].controls[0].disabled = self.current_page == 0
+        self.controls[-1].controls[2].disabled = (
+            self.current_page >= self.total_pages - 1
+        )
+        self.data_table.update()
+        self.page.update()
+
+    def __print_invoice(self, invoice_id):
+        # Implement the logic to print the invoice using the invoice_id
+        list_medocs = db.get_all_mouvement_facture_by_id_facture(invoice_id)
+        nom_client = list_medocs[0][7]
+        date = list_medocs[0][8]
+        montant_total = 0
+        for medoc in list_medocs:
+            montant_total += float(medoc[5])
+        liste_medocs_facture = [
+            ["N°", "QUANTITE", "FORME", "PRODUIT", "PRIX UNITAIRE", "PRIX TOTAL"]
+        ]
+        for index, medoc in enumerate(list_medocs, start=1):
+            liste_medocs_facture.append(
+                [
+                    str(index),
+                    medoc[4],
+                    medoc[3],
+                    medoc[2],
+                    medoc[5],
+                    medoc[5],
+                ]
+            )
+        facture_thread = Thread(
+            target=generer_facture,
+            kwargs=dict(
+                list_medicaments=liste_medocs_facture,
+                prix_total=str(montant_total) + " FC",
+                reduction="0 FC",
+                charges_connexes="0 FC",
+                date=date,
+                nom_client=nom_client,
+                num_facture=invoice_id,
+                bar_code="F-"
+                + str(invoice_id)
+                + "-"
+                + str(datetime.datetime.now().year),
+                montant_final="Net à payer : " + str(montant_total) + " FC",
+                montant_en_lettres=number_to_words(montant_total) + " FC",
+            ),
+        )
+        facture_thread.start()
 
 
 def main(page: ft.Page):
@@ -1998,7 +2253,7 @@ def main(page: ft.Page):
     page.title = "Shekinah App"
     page.bgcolor = "#f0f0f0"
     page.fonts = {
-        "Poppins": str(pathlib.Path(__file__).parent.resolve()).replace("\\", "/")
+        "Poppins": str(Path(__file__).parent.resolve()).replace("\\", "/")
         + "/assets/fonts/Poppins/Poppins-Regular.ttf",
     }
     page.theme = Theme(font_family="Poppins")
@@ -2025,6 +2280,5 @@ def main(page: ft.Page):
 
 ft.app(
     main,
-    assets_dir=str(pathlib.Path(__file__).parent.resolve()).replace("\\", "/")
-    + "/assets",
+    assets_dir=str(Path(__file__).parent.resolve()).replace("\\", "/") + "/assets",
 )

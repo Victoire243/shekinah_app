@@ -1,5 +1,6 @@
 import sqlite3
 import datetime
+import csv
 
 
 class DBUtils:
@@ -15,7 +16,10 @@ class DBUtils:
 
     def select(self, table_name, columns):
         columns_str = ", ".join(columns)
-        return self.cursor.execute(f"SELECT {columns_str} FROM {table_name}").fetchall()
+        resultat = self.cursor.execute(
+            f"SELECT {columns_str} FROM {table_name}"
+        ).fetchall()
+        return resultat if resultat else []
 
     def close(self):
         self.conn.close()
@@ -275,17 +279,78 @@ class DBUtils:
             medoc,
         )
 
+    def add_to_accounts_mouvement_facture(
+        self,
+        quantite,
+        forme,
+        produit,
+        prix_unitaire,
+        prix_total,
+        id_facture,
+        nom_client,
+        date,
+    ):
+        self.insert_fields(
+            "accounts_mouvement_facture",
+            (
+                "quantité",
+                "forme",
+                "produit",
+                "prix_unitaire",
+                "prix_total",
+                "id_facture",
+                "nom_client",
+                "date",
+            ),
+            (
+                quantite,
+                forme,
+                produit,
+                prix_unitaire,
+                prix_total,
+                id_facture,
+                nom_client,
+                date,
+            ),
+        )
 
-if __name__ == "__main__":
-    db = DBUtils()
-    db.add_medoc(
-        [
-            "DOPRO",
-            "SANOFI",
-            "2021-09-01",
-            "2023-09-01",
-            5,
-            10,
-        ]
-    )
-    db.close()
+    def get_all_mouvement_facture(self):
+        return self.select("accounts_mouvement_facture", ["*"])
+
+    def get_all_mouvement_facture_by_id_facture(self, id_facture):
+        resultat = self.cursor.execute(
+            f"SELECT * FROM accounts_mouvement_facture WHERE id_facture = {id_facture if id_facture else 0}"
+        ).fetchall()
+        return resultat if resultat else []
+
+    def get_last_facture_id(self):
+        result = self.cursor.execute(
+            "SELECT id_facture FROM accounts_mouvement_facture facture ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        return result[0] if result else 0
+
+    def get_last_mouve_id(self):
+        result = self.cursor.execute(
+            "SELECT id FROM accounts_mouvement ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        return result[0] if result else 0
+
+    def import_csv_to_db(self, csv_file_path):
+        try:
+            with open(csv_file_path, newline="", encoding="utf-8") as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    self.add_medoc(
+                        (
+                            row["nom"],
+                            row["marque"],
+                            row["date_entree"],
+                            row["date_dexpiration"],
+                            row["prix_achat"],
+                            row["prix_vente"],
+                        )
+                    )
+                    # Insert into accounts_mouvement
+            print("CSV data has been imported into the database.")
+        except sqlite3.Error as e:
+            print(f"An error occurred: {e}")

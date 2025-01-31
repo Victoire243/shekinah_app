@@ -1,91 +1,207 @@
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
-import barcode
-from barcode.writer import ImageWriter
+from reportlab.lib import colors
+from reportlab.platypus import Table, TableStyle
+import pathlib
 import os
 import subprocess
-import win32print
-import win32api
+import barcode
+from barcode.writer import ImageWriter
 
 
-def generer_facture(facture, fichier_sortie="facture_a4.pdf"):
-    # Créer un fichier PDF au format A4
-    c = canvas.Canvas(fichier_sortie, pagesize=A4)
-    width, height = A4  # Largeur = 210 mm, Hauteur = 297 mm
+def generer_facture(
+    list_medicaments,
+    prix_total,
+    reduction,
+    charges_connexes,
+    date,
+    bar_code,
+    montant_final,
+    nom_client,
+    num_facture,
+    montant_en_lettres,
+):
+    fichier_sortie = "facture_test.pdf"
+    c = canvas.Canvas(filename=fichier_sortie, pagesize=A4)
+    width, height = A4
 
-    # Ajouter le logo (en haut à gauche)
-    logo_path = "assets/images/logo_shekinah_.png"  # Remplace par le chemin de ton logo
+    # Définir les marges
+    marge_gauche = 50
+    marge_droite = 50
+    marge_haut = 50
+    marge_bas = 50
+
+    # Position de départ pour le contenu
+    y_position = height - marge_haut
+
+    # En-tête gauche
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(marge_gauche, y_position, "PHARMACIE SHEKINAK")
+    y_position -= 15
+    c.drawString(marge_gauche, y_position, "RCCM/20-A-782")
+    y_position -= 15
+    c.drawString(marge_gauche, y_position, "ID. NAT : 17-G4701-N773876")
+    y_position -= 15
+    c.drawString(marge_gauche, y_position, "N° IMPOT : A 2160128F")
+    y_position -= 15
+    c.drawString(marge_gauche, y_position, "Tél / (+243) 97 41 16 448, 82 76 062 44")
+    y_position -= 15
+    c.drawString(marge_gauche, y_position, "AV DU 04 JANVIER, C/KASUKU")
+    y_position -= 15
+    c.drawString(marge_gauche, y_position, "KINDU VILLE")
+    y_position -= 30  # Espacement supplémentaire
+
+    # En-tête droite
+    c.setFont("Helvetica", 11)
+    c.drawString(
+        width - marge_droite - 190,
+        height - marge_haut,
+        f"Date : {date}",
+    )
+    c.setFont("Helvetica", 12)
+    logo_path = (
+        str(pathlib.Path(__file__).parent.parent.resolve()).replace("\\", "/")
+        + "/assets/images/logo.png"
+    )  # Remplace par le chemin de ton logo
     if os.path.exists(logo_path):
         logo = ImageReader(logo_path)
         c.drawImage(
-            logo, 50, height - 100, width=100, height=50
-        )  # Ajuster la taille et la position
+            logo,
+            width - marge_droite - 175,
+            height - marge_haut - 110,
+            width=100,
+            height=100,
+        )
 
-    # Ajouter le nom de la pharmacie (à gauche, sous le logo)
+    # Titre de la facture
     c.setFont("Helvetica-Bold", 16)
-    c.drawString(50, height - 130, facture["pharmacie"]["nom"])
-    c.setFont("Helvetica", 12)
-    c.drawString(50, height - 150, facture["pharmacie"]["adresse"])
-    c.drawString(50, height - 170, facture["pharmacie"]["telephone"])
+    text = f"FACTURE N° {num_facture}"
+    text_width = c.stringWidth(text, "Helvetica-Bold", 16)
+    c.drawString((width - text_width) / 2, y_position, text)
+    y_position -= 30  # Espacement supplémentaire
 
-    # Ajouter les informations du client et le numéro de facture (en haut à droite)
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(width - 250, height - 100, "Facture pour :")
+    # Informations du client
     c.setFont("Helvetica", 12)
-    c.drawString(width - 250, height - 120, facture["client"]["nom"])
-    c.drawString(width - 250, height - 140, facture["client"]["adresse"])
-    c.drawString(
-        width - 250, height - 160, f"Numéro de facture : {facture['numero_facture']}"
+    c.drawString(marge_gauche, y_position, f"Client {nom_client} doit ")
+    y_position -= 30  # Espacement supplémentaire
+
+    # Données du tableau
+    # data = [
+    #     ["N°", "Quantité", "Forme", "Produit", "Prix Unitaire", "Prix Total"],
+    #     ["1", "2", "Comprimé", "Paracétamol", "5", "10"],
+    #     ["2", "1", "Gélule", "Ibuprofène", "8", "8"],
+    #     ["3", "1", "Instrument", "Thermomètre", "15", "15"],
+    # ]
+
+    # Ajouter des lignes supplémentaires pour simuler une longue table
+    # for i in range(4, 5):
+    #     data.append([str(i), "1", "Comprimé", f"Produit {i}", "10", "10"])
+
+    # Créer le tableau avec ReportLab
+    table = Table(
+        list_medicaments, colWidths=[30, 60, 80, 160, 80, 80]
+    )  # Ajuster les largeurs des colonnes
+    table.setStyle(
+        TableStyle(
+            [
+                (
+                    "BACKGROUND",
+                    (0, 0),
+                    (-1, 0),
+                    colors.grey,
+                ),  # Couleur de fond pour l'en-tête
+                (
+                    "TEXTCOLOR",
+                    (0, 0),
+                    (-1, 0),
+                    colors.whitesmoke,
+                ),  # Couleur du texte pour l'en-tête
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),  # Alignement du texte au centre
+                (
+                    "FONTNAME",
+                    (0, 0),
+                    (-1, 0),
+                    "Helvetica-Bold",
+                ),  # Police en gras pour l'en-tête
+                (
+                    "BOTTOMPADDING",
+                    (0, 0),
+                    (-1, 0),
+                    12,
+                ),  # Espacement en bas pour l'en-tête
+                (
+                    "BACKGROUND",
+                    (0, 1),
+                    (-1, -1),
+                    colors.beige,
+                ),  # Couleur de fond pour les autres lignes
+                ("GRID", (0, 0), (-1, -1), 1, colors.black),  # Bordures du tableau
+            ]
+        )
     )
 
-    # Ajouter les détails des produits (au centre)
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(50, height - 210, "Détails de la facture :")
-    c.setFont("Helvetica", 12)
-    y = height - 230
-    for produit in facture["produits"]:
-        ligne = f"{produit['nom']} - {produit['quantite']} x {produit['prix_unitaire']} € = {produit['quantite'] * produit['prix_unitaire']} €"
-        c.drawString(50, y, ligne)
-        y -= 20  # Espace entre les lignes
+    # Calculer la hauteur du tableau
+    table_height = (
+        len(list_medicaments) * 20
+    )  # Estimation de la hauteur (20 points par ligne)
 
-    # Calculer le total
-    total = sum(
-        produit["quantite"] * produit["prix_unitaire"]
-        for produit in facture["produits"]
-    )
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(50, y - 30, f"Total : {total} €")
+    # Vérifier si le tableau dépasse la hauteur disponible
+    if y_position - table_height < marge_bas:
+        c.showPage()  # Créer une nouvelle page
+        y_position = height - marge_haut  # Réinitialiser la position Y
 
-    # Ajouter la date
-    c.setFont("Helvetica", 10)
-    c.drawString(50, y - 60, f"Date : {facture['date']}")
+    # Dessiner le tableau sur le canvas
+    table.wrapOn(c, width - marge_gauche - marge_droite, height)
+    table.drawOn(c, marge_gauche, y_position - table_height)
+    y_position -= table_height + 20  # Espacement après le tableau
+
+    # Calculer le montant final
+
+    # Ajouter les informations de total, réduction, charges et montant final
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(marge_gauche, y_position, f"Total : {prix_total}")
+    y_position -= 20
+    c.drawString(marge_gauche, y_position, f"Réduction accordée : {reduction}")
+    y_position -= 20
+    c.drawString(marge_gauche, y_position, f"Charges connexes : {charges_connexes}")
+    y_position -= 20
+    c.drawString(marge_gauche, y_position, f"Montant final à payer : {montant_final}")
+    y_position -= 20
+    c.setFillColor(colors.green)
+    c.drawString(marge_gauche, y_position, f"En lettre : {montant_en_lettres}")
+    y_position -= 40  # Espacement supplémentaire
+    # Ajouter le message en rouge
+    c.setFont("Helvetica-Bold", 12)
+    c.setFillColor(colors.red)
+    message = "LES MARCHANDISES VENDUES NE SONT NI REPRISES NI ECHANGEES"
+    c.drawString(marge_gauche, y_position, message)
+    y_position -= 30  # Espacement supplémentaire
 
     # Générer un code-barres
-    code = facture["numero_facture"]
-    code_barre = barcode.get("code128", code, writer=ImageWriter())
-    code_barre_path = f"barcode_{code}"
-    code_barre.save(code_barre_path)  # Sauvegarder le code-barre en image
+    barcode_class = barcode.get_barcode_class("code128")
+    barcode_instance = barcode_class(bar_code, writer=ImageWriter())
+    barcode_filename = barcode_instance.save(
+        "barcode_temp"
+    )  # Sauvegarder le code-barres temporairement
 
-    # Ajouter le code-barres en bas de la facture
+    # Ajouter le code-barres en bas à droite
+    barcode_img = ImageReader(barcode_filename)
     c.drawImage(
-        f"{code_barre_path}.png", 50, 50, width=200, height=50
-    )  # Ajuster la taille et la position
+        barcode_img, width - marge_droite - 150, y_position - 50, width=150, height=50
+    )
 
-    # Enregistrer le PDF
+    # Supprimer le fichier temporaire du code-barres
+    os.remove(barcode_filename)
+
+    # Sauvegarder le PDF
     c.save()
 
-    # Supprimer l'image du code-barres après utilisation
-    os.remove(f"{code_barre_path}.png")
-
-    # Ouvrir l'imprimante par défaut pour imprimer la facture
-    ouvrir_facture(fichier_sortie)
+    # Ouvrir le fichier PDF généré
+    ouvrir_fichier(fichier_sortie)
 
 
-def ouvrir_facture(fichier_pdf):
-    """
-    Ouvre le fichier PDF avec l'application par défaut du système.
-    """
+def ouvrir_fichier(fichier_pdf):
     if os.name == "nt":  # Windows
         os.startfile(fichier_pdf)
     elif os.name == "posix":  # Linux ou macOS
@@ -94,53 +210,24 @@ def ouvrir_facture(fichier_pdf):
         print("Système d'exploitation non supporté pour l'ouverture automatique.")
 
 
-def lister_imprimantes():
-    """
-    Liste les imprimantes installées sur la machine et affiche l'imprimante par défaut.
-    """
-    if os.name == "nt":  # Windows
-        result = subprocess.run(
-            ["wmic", "printer", "get", "name,default"], capture_output=True, text=True
-        )
-        print(result.stdout)
-    elif os.name == "posix":  # Linux ou macOS
-        result = subprocess.run(["lpstat", "-p", "-d"], capture_output=True, text=True)
-        print(result.stdout)
-    else:
-        print("Système d'exploitation non supporté pour la liste des imprimantes.")
+# # Exemple d'utilisation
+# list_medicaments = [
+#     {
+#         "designation": "Paracétamol",
+#         "quantite": 2,
+#         "forme": "Comprimé",
+#         "prix_unitaire": 5,
+#     },
+#     {"designation": "Ibuprofène", "quantite": 1, "forme": "Gélule", "prix_unitaire": 8},
+#     {
+#         "designation": "Thermomètre",
+#         "quantite": 1,
+#         "forme": "Instrument",
+#         "prix_unitaire": 15,
+#     },
+# ]
+# prix_total = 33  # Total calculé
+# reduction = 5  # Réduction accordée
+# charges_connexes = 2  # Charges supplémentaires
 
-
-def imprimer_facture(fichier_pdf):
-    """
-    Ouvre la fenêtre de dialogue d'impression pour le fichier PDF.
-    """
-    # Récupérer l'imprimante par défaut
-    imprimante_par_defaut = win32print.GetDefaultPrinter()
-    print(imprimante_par_defaut)
-
-    # Ouvrir la boîte de dialogue d'impression
-    win32api.ShellExecute(0, "print", fichier_pdf, None, ".", 0)
-
-
-# Exemple d'utilisation pour imprimer la facture
-# imprimer_facture("facture_a4.pdf")
-
-
-# lister_imprimantes()
-# Exemple d'utilisation
-facture = {
-    "pharmacie": {
-        "nom": "Pharmacie du Coin",
-        "adresse": "123 Rue de la Santé, Ville",
-        "telephone": "01 23 45 67 89",
-    },
-    "client": {"nom": "Jean Dupont", "adresse": "456 Avenue des Patients, Ville"},
-    "produits": [
-        {"nom": "Paracétamol", "quantite": 2, "prix_unitaire": 5.0},
-        {"nom": "Vitamine C", "quantite": 1, "prix_unitaire": 10.0},
-    ],
-    "date": "2023-10-25",
-    "numero_facture": "FAC-2023-001",
-}
-
-generer_facture(facture)
+# generer_facture(list_medicaments, prix_total, reduction, charges_connexes)
