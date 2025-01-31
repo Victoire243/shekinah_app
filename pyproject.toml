@@ -10,6 +10,9 @@ dependencies = [
     "pillow",
     "chardet",
     "reportlab==4.2.5",
+    "comtypes",
+    "pywin32",
+    "pypiwin32",
 ]
 
 [tool.flet]

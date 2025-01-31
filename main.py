@@ -1,5 +1,5 @@
 import datetime
-import flet as ft
+import os
 from components.CustomElevatedButton import CustomElevatedButton
 from components.CustomDraftButton import CustomDraftButton
 from components.CustomTextField import CustomTextField
@@ -10,9 +10,69 @@ from views.login_view import LoginView
 from models.medicament import Medicament
 from pathlib import Path
 from utils.speaker import Speaker
-from flet import *
 from db.db_utils import DBUtils
 from threading import Thread
+from flet import (
+    Row,
+    Column,
+    Container,
+    Text,
+    Icon,
+    IconButton,
+    Button,
+    DataTable,
+    DataColumn,
+    DataRow,
+    DataCell,
+    SearchBar,
+    BorderSide,
+    RoundedRectangleBorder,
+    ControlState,
+    MainAxisAlignment,
+    FontWeight,
+    ScrollMode,
+    alignment,
+    padding,
+    border_radius,
+    Colors,
+    BoxShadow,
+    ClipBehavior,
+    CupertinoTextField,
+    KeyboardType,
+    InputFilter,
+    NumbersOnlyInputFilter,
+    AutoComplete,
+    AutoCompleteSuggestion,
+    AutoCompleteSelectEvent,
+    DatePicker,
+    ControlEvent,
+    Dropdown,
+    dropdown,
+    Image,
+    TextAlign,
+    SnackBar,
+    FilePicker,
+    FilePickerResultEvent,
+    PopupMenuButton,
+    PopupMenuItem,
+    Divider,
+    Theme,
+    RouteChangeEvent,
+    AlertDialog,
+    MainAxisAlignment,
+    CrossAxisAlignment,
+    ResponsiveRow,
+    ListView,
+    KeyboardEvent,
+    Icons,
+    ButtonStyle,
+    Page,
+    app,
+    ElevatedButton,
+    OutlinedButton,
+    View,
+)
+
 
 current_directory = (
     str(Path(__file__).parent.resolve()).replace("\\", "/")
@@ -33,7 +93,7 @@ def update_lists_medocs():
 
 class ProduitsView(Column):
     def __init__(
-        self, page: ft.Page, handler_entree_produit=None, handler_entree_stock=None
+        self, page: Page, handler_entree_produit=None, handler_entree_stock=None
     ):
         super().__init__()
         self.page = page
@@ -482,7 +542,7 @@ class ProduitsView(Column):
 
 
 class EntreeStockView(Column):
-    def __init__(self, page: ft.Page):
+    def __init__(self, page: Page):
         super().__init__()
         self.page = page
         self.spacing = 0
@@ -841,7 +901,7 @@ class EntreeStockView(Column):
 class PrincipalView(Column):
     def __init__(
         self,
-        page: ft.Page,
+        page: Page,
         draft_handler=None,
         taux_dollar=None,
     ):
@@ -1210,10 +1270,10 @@ class PrincipalView(Column):
             input_filter=NumbersOnlyInputFilter(),
             col=1,
             on_change=self.__update_prix_total,
-            on_click=self.add_medoce_panier,
+            on_submit=self.add_medoce_panier,
         )
         self.forme = CustomTextField(
-            label="Forme", col=2, on_click=self.add_medoce_panier
+            label="Forme", col=2, on_submit=self.add_medoce_panier
         )
         self.prix_unitaire = CustomTextField(
             label="Prix",
@@ -1221,7 +1281,7 @@ class PrincipalView(Column):
             input_filter=InputFilter(regex_string=r"^(\d*\.?\d+|\d+\.?\d*|\d*)$"),
             col=2,
             on_change=self.__update_prix_total,
-            on_click=self.add_medoce_panier,
+            on_submit=self.add_medoce_panier,
         )
         self.prix_total = Text("0", weight=FontWeight.BOLD)
         self.produit_designation = AutoComplete(
@@ -1478,7 +1538,7 @@ class PrincipalView(Column):
 
 
 class Accueil(Container):
-    def __init__(self, page: ft.Page):
+    def __init__(self, page: Page):
         super().__init__()
         self.page = page
         self.expand = True
@@ -1808,7 +1868,7 @@ class Accueil(Container):
             self.page.update()
 
     def __add_draft(self, list_draft, nom_client, date):
-        self.list_medocs_draft.controls.append(
+        self.list_medocs_dracontrols.append(
             CustomDraftButton(
                 self.page,
                 list_draft,
@@ -1818,7 +1878,7 @@ class Accueil(Container):
                 self.__load_draft,
             )
         )
-        self.list_medocs_draft.update()
+        self.list_medocs_draupdate()
 
     def __verifier_produit(self, e):
         if self.nom.value:
@@ -1896,8 +1956,8 @@ class Accueil(Container):
         self.db_file_picked.update()
 
     def __delete_draft(self, e):
-        self.list_medocs_draft.controls.remove(e)
-        self.list_medocs_draft.update()
+        self.list_medocs_dracontrols.remove(e)
+        self.list_medocs_draupdate()
 
     def __load_draft(self, e):
         self.__principal_view.load_draft(e.list_medicaments, e.nom_client)
@@ -1906,7 +1966,7 @@ class Accueil(Container):
 
 class VenteView(Column):
     def __init__(
-        self, page: ft.Page, handler_entree_produit=None, handler_entree_stock=None
+        self, page: Page, handler_entree_produit=None, handler_entree_stock=None
     ):
         super().__init__()
         self.page = page
@@ -2209,11 +2269,11 @@ class VenteView(Column):
         facture_thread.start()
 
 
-def main(page: ft.Page):
+def main(page: Page):
     def on_route_change(route: RouteChangeEvent):
         page.views.clear()
         page.views.append(
-            ft.View(
+            View(
                 "/",
                 [
                     LoginView(page),
@@ -2223,7 +2283,7 @@ def main(page: ft.Page):
         )
         if page.route == "/home":
             page.views.append(
-                ft.View(
+                View(
                     "/home",
                     [
                         Accueil(page),
@@ -2250,7 +2310,7 @@ def main(page: ft.Page):
         page.close(confirm_dialog)
 
     page.padding = padding.all(0)
-    page.title = "Shekinah App"
+    page.title = "PHARMACIE SHEKINA"
     page.bgcolor = "#f0f0f0"
     page.fonts = {
         "Poppins": str(Path(__file__).parent.resolve()).replace("\\", "/")
@@ -2259,18 +2319,18 @@ def main(page: ft.Page):
     page.theme = Theme(font_family="Poppins")
     page.window.center()
     page.window.maximized = True
-    # page.window.prevent_close = True
-    # page.window.on_event = handle_window_event
+    page.window.prevent_close = True
+    page.window.on_event = handle_window_event
 
-    confirm_dialog = ft.AlertDialog(
+    confirm_dialog = AlertDialog(
         modal=True,
-        title=ft.Text("Veuillez confirmer"),
-        content=ft.Text("Voulez-vous quitter ?"),
+        title=Text("Veuillez confirmer"),
+        content=Text("Voulez-vous quitter ?"),
         actions=[
-            ft.ElevatedButton("Oui, quitter", on_click=yes_click),
-            ft.OutlinedButton("Non, annuler", on_click=no_click),
+            ElevatedButton("Oui, quitter", on_click=yes_click),
+            OutlinedButton("Non, annuler", on_click=no_click),
         ],
-        actions_alignment=ft.MainAxisAlignment.END,
+        actions_alignment=MainAxisAlignment.END,
     )
 
     page.on_route_change = on_route_change
@@ -2278,7 +2338,7 @@ def main(page: ft.Page):
     page.go(page.route)
 
 
-ft.app(
+app(
     main,
     assets_dir=str(Path(__file__).parent.resolve()).replace("\\", "/") + "/assets",
 )

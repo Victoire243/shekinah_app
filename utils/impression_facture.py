@@ -1,3 +1,4 @@
+import shutil
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
@@ -178,6 +179,7 @@ def generer_facture(
     y_position -= 30  # Espacement supplémentaire
 
     # Générer un code-barres
+    c.setFillColor(colors.black)
     barcode_instance = code128.Code128(bar_code, barHeight=50, barWidth=1.2)
     barcode_instance.drawOn(c, width - marge_droite - 150, y_position - 50)
 
@@ -195,6 +197,13 @@ def ouvrir_fichier(fichier_pdf):
         subprocess.run(["xdg-open", fichier_pdf])
     else:
         print("Système d'exploitation non supporté pour l'ouverture automatique.")
+
+    # deplacer le fichier dans le dossier de l'utilisateur (ecrasser le fichier si il existe)
+    try:
+        shutil.move(fichier_pdf, os.path.expanduser("~"))
+    except Exception as e:
+        pass
+    # shutil.move(fichier_pdf, os.path.expanduser("~"))
 
 
 # # Exemple d'utilisation

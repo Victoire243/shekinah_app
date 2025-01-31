@@ -354,3 +354,13 @@ class DBUtils:
             print("CSV data has been imported into the database.")
         except sqlite3.Error as e:
             print(f"An error occurred: {e}")
+
+    def delete_all_table_data(self, table_name):
+        self.cursor.execute(f"DELETE FROM {table_name}")
+        self.conn.commit()
+
+
+if __name__ == "__main__":
+    db = DBUtils("assets/db/db_test.sqlite3")
+    db.delete_all_table_data("accounts_mouvement_facture")
+    db.close()
