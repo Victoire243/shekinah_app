@@ -6,8 +6,7 @@ from reportlab.platypus import Table, TableStyle
 import pathlib
 import os
 import subprocess
-import barcode
-from barcode.writer import ImageWriter
+from reportlab.graphics.barcode import code128
 
 
 def generer_facture(
@@ -179,20 +178,8 @@ def generer_facture(
     y_position -= 30  # Espacement supplémentaire
 
     # Générer un code-barres
-    barcode_class = barcode.get_barcode_class("code128")
-    barcode_instance = barcode_class(bar_code, writer=ImageWriter())
-    barcode_filename = barcode_instance.save(
-        "barcode_temp"
-    )  # Sauvegarder le code-barres temporairement
-
-    # Ajouter le code-barres en bas à droite
-    barcode_img = ImageReader(barcode_filename)
-    c.drawImage(
-        barcode_img, width - marge_droite - 150, y_position - 50, width=150, height=50
-    )
-
-    # Supprimer le fichier temporaire du code-barres
-    os.remove(barcode_filename)
+    barcode_instance = code128.Code128(bar_code, barHeight=50, barWidth=1.2)
+    barcode_instance.drawOn(c, width - marge_droite - 150, y_position - 50)
 
     # Sauvegarder le PDF
     c.save()

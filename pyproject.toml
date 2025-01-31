@@ -10,7 +10,6 @@ dependencies = [
     "pillow",
     "chardet",
     "reportlab==4.2.5",
-    "qrcode",
 ]
 
 [tool.flet]
