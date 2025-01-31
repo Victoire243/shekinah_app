@@ -22,11 +22,11 @@ Ce logiciel a été développé en utilisant les technologies suivantes :
 
 ## Captures d'Écran
 
-*Ajoutez ici des captures d'écran de l'application pour illustrer ses fonctionnalités.*
+..
 
 ## Installation
 
-*Instructions d'installation et de configuration de l'application.*
+*Pour installer double-cliquer sur l'installateur et suivre les étapes.*
 
 ## Contribution
 
