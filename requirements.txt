@@ -1,7 +1,4 @@
 flet==0.25.0
-comtypes
-pywin32
-pypiwin32
 pyttsx3
 pillow
 chardet

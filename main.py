@@ -1,5 +1,4 @@
 import datetime
-import os
 from components.CustomElevatedButton import CustomElevatedButton
 from components.CustomDraftButton import CustomDraftButton
 from components.CustomTextField import CustomTextField
@@ -71,6 +70,7 @@ from flet import (
     ElevatedButton,
     OutlinedButton,
     View,
+    Badge,
 )
 
 
@@ -1241,9 +1241,12 @@ class PrincipalView(Column):
             self.list_medocs_panier.update()
             self.__reinitialiser_entree()
         else:
-            self.page.snack_bar = SnackBar(
-                Text("Ce produit n'est pas disponible"), open=True
-            )
+            try:
+                self.page.snack_bar = SnackBar(
+                    Text("Ce produit n'est pas disponible"), open=True
+                )
+            except:
+                pass
             self.page.update()
         self.__calcul_totaux()
 
@@ -1433,6 +1436,8 @@ class PrincipalView(Column):
         self.__calcul_totaux()
 
     async def finaliser_vente(self):
+        if not self.list_medocs_panier.controls:
+            return
         for medoc in (
             self.list_medocs_panier.controls if self.list_medocs_panier.controls else []
         ):
@@ -1513,9 +1518,11 @@ class PrincipalView(Column):
             target=generer_facture,
             kwargs=dict(
                 list_medicaments=liste_medocs_facture,
-                prix_total=self.totaux.value + " " + self.devises.value,
-                reduction=self.reduction_accordee.value + " " + self.devises.value,
-                charges_connexes=self.charges_connexes.value + " " + self.devises.value,
+                prix_total=str(self.totaux.value) + " " + self.devises.value,
+                reduction=str(self.reduction_accordee.value) + " " + self.devises.value,
+                charges_connexes=str(self.charges_connexes.value)
+                + " "
+                + self.devises.value,
                 date=datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S"),
                 nom_client=self.nom_client.value,
                 num_facture=num_facture,
@@ -1636,6 +1643,12 @@ class Accueil(Container):
                                 text="Clients",
                                 icon=Icons.PEOPLE,
                                 on_click=self.__change_view,
+                                disabled=True,
+                            ),
+                            CustomElevatedButton(
+                                text="Tableau de bord",
+                                icon=Icons.BAR_CHART,
+                                on_click=self.__change_view,
                             ),
                             Container(height=20),
                             Text(
@@ -1730,6 +1743,8 @@ class Accueil(Container):
                 )
             case "Clients":
                 self.current_view.content = self.__clients_view
+            case "Tableau de bord":
+                self.current_view.content = TableauBordView(self.page)
         self.current_view.update()
 
     def __change_taux_dollar(self, e):
@@ -1854,16 +1869,9 @@ class Accueil(Container):
         try:
             self.db_file_picked.value = result.files[0].name
             self.db_file_picked.update()
-            path = result.files[0].path
-            db.import_csv_to_db(path)
-            self.page.snack_bar = SnackBar(
-                Text("Les données du fichier CSV ont été importées avec succès"),
-                open=True,
-            )
+            self.path_csv = result.files[0].path
         except Exception as e:
-            self.page.snack_bar = SnackBar(
-                Text(f"Erreur lors de l'importation du fichier CSV: {e}"), open=True
-            )
+            pass
         finally:
             self.page.update()
 
@@ -1897,11 +1905,19 @@ class Accueil(Container):
 
     def __add_medoc_to_db(self):
         if self.db_file_picked.value != " ":
-            db.add_medocs_from_csv(self.db_file_picked.value)
-            self.page.snack_bar = SnackBar(
-                Text("Les produits ont été ajoutés avec succès"), open=True
-            )
-            self.page.update()
+            try:
+                db.import_csv_to_db(self.path_csv)
+                self.page.snack_bar = SnackBar(
+                    Text("Les produits ont été ajoutés avec succès"), open=True
+                )
+                self.page.update()
+            except Exception as e:
+                self.page.snack_bar = SnackBar(
+                    Text("Une erreur est survenue !"), open=True
+                )
+                self.page.update()
+            finally:
+                return
         elif (
             self.nom.value
             and self.forme.value
@@ -2241,10 +2257,10 @@ class VenteView(Column):
             liste_medocs_facture.append(
                 [
                     str(index),
-                    medoc[4],
-                    medoc[3],
+                    medoc[1],
                     medoc[2],
-                    medoc[5],
+                    medoc[3],
+                    medoc[4],
                     medoc[5],
                 ]
             )
@@ -2267,6 +2283,184 @@ class VenteView(Column):
             ),
         )
         facture_thread.start()
+
+
+class TableauBordView(Column):
+    def __init__(self, page: Page):
+        super().__init__()
+        self.page = page
+        self.expand = True
+        self.horizontal_alignment = CrossAxisAlignment.STRETCH
+        self.controls = [
+            Container(
+                bgcolor="black",
+                height=110,
+                border_radius=border_radius.only(top_left=15, top_right=15),
+                padding=padding.symmetric(horizontal=20, vertical=10),
+                content=Text("Tableau de bord", size=20, weight="bold", color="white"),
+                alignment=alignment.center_left,
+            ),
+            Container(
+                expand=True,
+                padding=padding.symmetric(horizontal=20, vertical=10),
+                alignment=alignment.center_left,
+                content=Column(
+                    horizontal_alignment=CrossAxisAlignment.CENTER,
+                    controls=[
+                        Row(
+                            alignment=MainAxisAlignment.SPACE_AROUND,
+                            controls=[
+                                CardTableauBord(
+                                    self.page,
+                                    title="MEDICAMENTS ENREGISTRES",
+                                    quantite=self.__medocs_enreigistrer(),
+                                ),
+                                CardTableauBord(
+                                    self.page,
+                                    title="TOTAL VENDU",
+                                    quantite=self.__total_vendu(),
+                                    bgcolor="blue",
+                                    title_color="white",
+                                    divider_color="#88AEFF",
+                                    qte_color="#ECECEC",
+                                ),
+                                CardTableauBord(
+                                    self.page,
+                                    title="TOTAL VENDU AUJOURD'HUI",
+                                    quantite=self.__total_vendu_aujourdhui(),
+                                    bgcolor="blue",
+                                    title_color="white",
+                                    divider_color="#88AEFF",
+                                    qte_color="#ECECEC",
+                                ),
+                            ],
+                        ),
+                        Row(
+                            alignment=MainAxisAlignment.SPACE_AROUND,
+                            controls=[
+                                CardTableauBord(
+                                    self.page,
+                                    title="DERNIERE VENTE",
+                                    quantite=self.__total_derniere_vente(),
+                                ),
+                                CardTableauBord(
+                                    self.page,
+                                    title="LE PLUS VENDU",
+                                    quantite=self.__medoc_le_plus_vendu(),
+                                    bgcolor="#EBEBEB",
+                                    qte_size=14,
+                                ),
+                                CardTableauBord(
+                                    self.page,
+                                    title="TOP CLIENT",
+                                    quantite=self.__client_top(),
+                                    qte_size=12,
+                                    qte_color="green",
+                                    badge=Badge(text="🥇"),
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
+            ),
+        ]
+
+    def __medocs_enreigistrer(self):
+        return len(list_medocs_names)
+
+    def __total_vendu(self):
+        total_vendu = 0
+        for invoice in db.get_all_mouvement_facture():
+            total_vendu += float(invoice[5])
+        return str(total_vendu) + " FC"
+
+    def __total_vendu_aujourdhui(self):
+        total_vendu_aujourdhui = 0
+        today = datetime.datetime.now().strftime("%d-%m-%Y")
+        for invoice in db.get_all_mouvement_facture():
+            if invoice[8].startswith(today):
+                total_vendu_aujourdhui += float(invoice[5])
+        return str(total_vendu_aujourdhui) + " FC"
+
+    def __total_derniere_vente(self):
+        total_derniere_vente = 0
+        all_invoices = db.get_all_mouvement_facture()
+        if all_invoices:
+            last_invoice_id = all_invoices[-1][6]
+            for invoice in all_invoices:
+                if invoice[6] == last_invoice_id:
+                    total_derniere_vente += float(invoice[5])
+        return str(total_derniere_vente) + " FC"
+
+    def __medoc_le_plus_vendu(self):
+        medoc_sales = {}
+        for invoice in db.get_all_mouvement_facture():
+            medoc_name = invoice[3]
+            quantite = int(invoice[1])
+            if medoc_name in medoc_sales:
+                medoc_sales[medoc_name] += quantite
+            else:
+                medoc_sales[medoc_name] = quantite
+        if medoc_sales:
+            medoc_le_plus_vendu = max(medoc_sales, key=medoc_sales.get)
+            return f"{medoc_le_plus_vendu}"
+        return "Aucun médicament vendu"
+
+    def __client_top(self):
+        clients = {}
+        for invoice in db.get_all_mouvement_facture():
+            client_name = invoice[7]
+            total_amount = float(invoice[5])
+            if client_name in clients:
+                clients[client_name] += total_amount
+            else:
+                clients[client_name] = total_amount
+        if clients:
+            top_client = max(clients, key=clients.get)
+            return f"{top_client} ({clients[top_client]} FC)"
+        return "Aucun client"
+
+
+class CardTableauBord(Container):
+    def __init__(
+        self,
+        page: Page,
+        bgcolor: str = "white",
+        title: str = "",
+        quantite: str | int | float = 0,
+        title_color="black",
+        divider_color="blue",
+        qte_color="#7E7E7E",
+        qte_size=18,
+        badge=None,
+    ):
+        super().__init__(self)
+        self.page = page
+        self.height = 100
+        self.width = 300
+        self.badge = badge
+        self.bgcolor = bgcolor
+        self.shadow = BoxShadow(blur_radius=2, color="#DADADA")
+        self.padding = padding.all(10)
+        self.border_radius = border_radius.all(15)
+        self.content = Column(
+            alignment=MainAxisAlignment.CENTER,
+            spacing=5,
+            controls=[
+                Text(
+                    value=title,
+                    size=18,
+                    color=title_color,
+                    weight="bold",
+                ),
+                Divider(thickness=2, color=divider_color),
+                Text(
+                    value=quantite,
+                    size=qte_size,
+                    color=qte_color,
+                ),
+            ],
+        )
 
 
 def main(page: Page):

@@ -6,13 +6,10 @@ readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
     "flet==0.25.0",
-    "pyttsx3==2.98",
+    "pyttsx3",
     "pillow",
     "chardet",
     "reportlab==4.2.5",
-    "comtypes",
-    "pywin32",
-    "pypiwin32",
 ]
 
 [tool.flet]

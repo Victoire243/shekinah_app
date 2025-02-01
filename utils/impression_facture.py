@@ -200,7 +200,7 @@ def ouvrir_fichier(fichier_pdf):
 
     # deplacer le fichier dans le dossier de l'utilisateur (ecrasser le fichier si il existe)
     try:
-        shutil.move(fichier_pdf, os.path.expanduser("~"))
+        shutil.copy(fichier_pdf, os.path.expanduser("~"))
     except Exception as e:
         pass
     # shutil.move(fichier_pdf, os.path.expanduser("~"))

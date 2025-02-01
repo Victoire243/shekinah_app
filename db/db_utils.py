@@ -236,7 +236,7 @@ class DBUtils:
         medoc = (
             medoc[2],
             medoc[1],
-            0,
+            100,
             medoc[4],
             "entrée",
             self.cursor.execute(
@@ -342,8 +342,8 @@ class DBUtils:
                 for row in reader:
                     self.add_medoc(
                         (
-                            row["nom"],
-                            row["marque"],
+                            row["nom"].upper().strip(),
+                            row["marque"].upper().strip(),
                             row["date_entree"],
                             row["date_dexpiration"],
                             row["prix_achat"],
@@ -359,8 +359,14 @@ class DBUtils:
         self.cursor.execute(f"DELETE FROM {table_name}")
         self.conn.commit()
 
+    def delete_all_data(self):
+        tables = self.list_tables()
+        for table in tables:
+            self.delete_all_table_data(table[0])
+
 
 if __name__ == "__main__":
     db = DBUtils("assets/db/db_test.sqlite3")
-    db.delete_all_table_data("accounts_mouvement_facture")
+    # db.delete_all_table_data("accounts_mouvement_facture")
+    db.import_csv_to_db("assets/db/produits.csv")
     db.close()
