@@ -50,6 +50,7 @@ class Medicament(Container):
         self.margin = margin.only(left=20, right=20, top=5, bottom=5)
         self.bgcolor = "#DBDBDB"
         self.padding = padding.all(10)
+        self.devise = Text("FC")
         self.content = ResponsiveRow(
             controls=[
                 self.nom,
@@ -63,7 +64,7 @@ class Medicament(Container):
                             expand=True,
                             controls=[
                                 self.prix_total,
-                                Text("FC"),
+                                self.devise,
                             ],
                         ),
                         IconButton(
@@ -89,3 +90,16 @@ class Medicament(Container):
 
     def __delete(self, e):
         self.medoc_delete(self)
+
+    def handler_devise_change(self, devise, taux):
+        self.prix_unitaire.value = str(
+            round(
+                float(self.prix_unitaire.value if self.prix_unitaire.value else 0)
+                / taux,
+                3,
+            )
+        )
+        self.devise.value = devise
+        self.devise.update()
+        self.prix_unitaire.update()
+        self.__update_prix_total(None)

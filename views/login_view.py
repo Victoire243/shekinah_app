@@ -91,8 +91,12 @@ class LoginView(Container):
         if self.username.value == "SHEKI" and self.password.value == "2022":
             self.page.go("/home")
         else:
-            self.page.snack_bar = SnackBar(
-                Text("Nom d'utilisateur ou mot de passe incorrect"),
-                open=True,
+            if self.page.overlay:
+                self.page.overlay.clear()
+            self.page.overlay.append(
+                SnackBar(
+                    Text("Nom d'utilisateur ou mot de passe incorrect"),
+                    open=True,
+                )
             )
             self.page.update()

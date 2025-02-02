@@ -100,6 +100,8 @@ class ProduitsView(Column):
         self.handler_entree_produit = handler_entree_produit
         self.handler_entree_stock = handler_entree_stock
         self.current_page = 0
+        self.expand = True
+        self.horizontal_alignment = CrossAxisAlignment.STRETCH
         self.items_per_page = 50
         self.total_items = len(list_medocs_for_preview)
         self.total_pages = (
@@ -120,15 +122,16 @@ class ProduitsView(Column):
                     Icons.CLOSE,
                     icon_color="black",
                     icon_size=18,
-                    on_click=lambda e: self.page.run_task(self.__restore_search_bar),
+                    on_click=lambda e: self.__restore_search_bar(),
                 )
             ],
-            on_blur=lambda e: self.page.run_task(self.__search_medoc),
+            on_blur=lambda e: self.__search_medoc(),
         )
         self.data_table = DataTable(
+            expand=True,
+            sort_ascending=True,
             sort_column_index=0,
             heading_row_color={ControlState.DEFAULT: "blue"},
-            sort_ascending=True,
             data_row_color={ControlState.HOVERED: "blue"},
             columns=[
                 DataColumn(
@@ -139,13 +142,6 @@ class ProduitsView(Column):
                     ),
                 ),
                 DataColumn(label=Text("Forme", weight=FontWeight.BOLD, color="white")),
-                DataColumn(
-                    label=Text(
-                        "Date d'entrée",
-                        weight=FontWeight.BOLD,
-                        color="white",
-                    )
-                ),
                 DataColumn(
                     label=Text(
                         "Date d'expiration",
@@ -205,6 +201,7 @@ class ProduitsView(Column):
                                         bgcolor="blue",
                                     ),
                                     on_click=self.handler_entree_produit,
+                                    height=40,
                                 ),
                                 Button(
                                     "+ Entrée Stock",
@@ -215,6 +212,7 @@ class ProduitsView(Column):
                                         bgcolor="blue",
                                     ),
                                     on_click=self.handler_entree_stock,
+                                    height=40,
                                 ),
                                 Button(
                                     " ",
@@ -226,6 +224,7 @@ class ProduitsView(Column):
                                     ),
                                     icon=Icons.LOOP,
                                     icon_color="blue",
+                                    height=40,
                                 ),
                             ],
                         ),
@@ -237,7 +236,9 @@ class ProduitsView(Column):
                 expand=True,
                 padding=padding.symmetric(horizontal=10, vertical=10),
                 content=Column(
-                    scroll=ScrollMode.AUTO,
+                    scroll=ScrollMode.ALWAYS,
+                    expand=True,
+                    horizontal_alignment=CrossAxisAlignment.STRETCH,
                     controls=[self.data_table],
                 ),
             ),
@@ -254,6 +255,7 @@ class ProduitsView(Column):
                             color="white",
                             bgcolor="blue",
                         ),
+                        height=40,
                     ),
                     Text(f"Page {self.current_page + 1} sur {self.total_pages}"),
                     Button(
@@ -266,27 +268,30 @@ class ProduitsView(Column):
                             color="white",
                             bgcolor="blue",
                         ),
+                        height=40,
                     ),
                 ],
             ),
         ]
 
-    async def __restore_search_bar(self):
+    def __restore_search_bar(self):
         self.search_bar.value = ""
         self.search_bar.update()
         self.data_table.rows = list(self.__products())
-        await self.data_table.update_async()
+        self.data_table.update()
 
-    async def __search_medoc(self):
+    def __search_medoc(self):
         products_founds = db.get_medocs_for_list_preview_by_containing_name(
             self.search_bar.value
         )
         if products_founds:
             self.data_table.rows = list(self.__products_searched(products_founds))
-            await self.data_table.update_async()
+            self.data_table.update()
         else:
-            self.page.snack_bar = SnackBar(Text("Aucun produit trouvé"), open=True)
-        await self.page.update_async()
+            if self.page.overlay:
+                self.page.overlay.clear()
+            self.page.overlay.append(SnackBar(Text("Aucun produit trouvé"), open=True))
+        self.page.update()
 
     def __products_searched(self, products_founds):
         for medoc in products_founds:
@@ -329,7 +334,7 @@ class ProduitsView(Column):
                 cells=[
                     DataCell(Text(medoc[0])),
                     DataCell(Text(medoc[1])),
-                    DataCell(Text(medoc[2])),
+                    DataCell(Text(medoc[2]), visible=False),
                     DataCell(Text(medoc[3])),
                     DataCell(Text(medoc[4])),
                     DataCell(Text(medoc[5])),
@@ -429,6 +434,7 @@ class ProduitsView(Column):
             on_click=lambda e: self.page.run_thread(
                 self.__update_medoc_accounts_produit_db
             ),
+            height=40,
         )
         self.dialog = AlertDialog(
             scrollable=True,
@@ -459,6 +465,7 @@ class ProduitsView(Column):
                     on_click=lambda e: self.page.run_thread(
                         self.__delete_medoc_accounts_produit_db
                     ),
+                    height=40,
                 ),
                 self.button_mettre_a_jour,
             ],
@@ -473,9 +480,9 @@ class ProduitsView(Column):
         self.date_field.update()
 
     def __update_medoc_accounts_produit_db(self):
-        self.page.run_task(self.__update_medoc_accounts_produit_db_async)
+        self.page.run_thread(self.__update_medoc_accounts_produit_db_async)
 
-    async def __update_medoc_accounts_produit_db_async(self):
+    def __update_medoc_accounts_produit_db_async(self):
         if (
             self.nom.value
             and self.prix_achat.value
@@ -504,41 +511,53 @@ class ProduitsView(Column):
                 db.update_medoc_quantity_by_id(medoc_id, int(self.stock_quantite.value))
                 db.update_medoc_designation_by_id(medoc_id, self.forme.value)
             except:
-                self.page.snack_bar = SnackBar(
-                    Text("Une erreur est survenue, veuillez ressayer !"), open=True
+                if self.page.overlay:
+                    self.page.overlay.clear()
+                self.page.overlay.append(
+                    SnackBar(
+                        Text("Une erreur est survenue, veuillez ressayer !"), open=True
+                    )
                 )
             else:
                 update_lists_medocs()
                 self.page.close(self.dialog)
-                self.page.snack_bar = SnackBar(
-                    Text("Le produit a été modifié avec succès"), open=True
+                if self.page.overlay:
+                    self.page.overlay.clear()
+                self.page.overlay.append(
+                    SnackBar(Text("Le produit a été modifié avec succès"), open=True)
                 )
                 self.data_table.rows = list(self.__products())
-                await self.data_table.update_async()
+                self.data_table.update()
             finally:
-                await self.page.update_async()
+                self.page.update()
 
     def __delete_medoc_accounts_produit_db(self):
-        self.page.run_task(self.__delete_medoc_accounts_produit_db_async)
+        self.page.run_thread(self.__delete_medoc_accounts_produit_db_async)
 
-    async def __delete_medoc_accounts_produit_db_async(self):
+    def __delete_medoc_accounts_produit_db_async(self):
         if self.nom.value:
             try:
                 db.delete_medoc(self.nom.value)
             except:
-                self.page.snack_bar = SnackBar(
-                    Text("Une erreur est survenue, veuillez ressayer !"), open=True
+                if self.page.overlay:
+                    self.page.overlay.clear()
+                self.page.overlay.append(
+                    SnackBar(
+                        Text("Une erreur est survenue, veuillez ressayer !"), open=True
+                    )
                 )
             else:
                 update_lists_medocs()
                 self.page.close(self.dialog)
-                self.page.snack_bar = SnackBar(
-                    Text("Le produit a été supprimé avec succès"), open=True
+                if self.page.overlay:
+                    self.page.overlay.clear()
+                self.page.overlay.append(
+                    SnackBar(Text("Le produit a été supprimé avec succès"), open=True)
                 )
                 self.data_table.rows = list(self.__products())
-                await self.data_table.update_async()
+                self.data_table.update()
             finally:
-                await self.page.update_async()
+                self.page.update()
 
 
 class EntreeStockView(Column):
@@ -546,6 +565,7 @@ class EntreeStockView(Column):
         super().__init__()
         self.page = page
         self.spacing = 0
+        self.page.on_keyboard_event = self.__handler_keyboard_key
         self.list_medocs_entree = ListView(
             auto_scroll=True,
             controls=[],
@@ -584,7 +604,15 @@ class EntreeStockView(Column):
         self.gain = Text("0", weight=FontWeight.BOLD)
         self.produit_designation = AutoComplete(
             suggestions=list(self.__autocomplete_suggestions()),
-            # on_select=self.__select_medoc_from_suggestion,
+            on_select=self.__select_medoc_from_suggestion,
+        )
+        self.container_designation = Container(
+            padding=padding.only(left=10, right=10, bottom=5),
+            bgcolor="white",
+            border_radius=border_radius.all(10),
+            col=4,
+            height=40,
+            content=self.produit_designation,
         )
 
         self.controls = [
@@ -662,6 +690,7 @@ class EntreeStockView(Column):
                                         bgcolor="#424242",
                                     ),
                                     on_click=self.__tout_reinitialiser,
+                                    height=40,
                                 ),
                                 Button(
                                     "Terminer",
@@ -670,6 +699,10 @@ class EntreeStockView(Column):
                                         shape=RoundedRectangleBorder(10),
                                         color="white",
                                         bgcolor="green",
+                                    ),
+                                    height=40,
+                                    on_click=lambda e: self.page.run_thread(
+                                        self.__finaliser_entree_medocs
                                     ),
                                 ),
                             ],
@@ -694,14 +727,7 @@ class EntreeStockView(Column):
                     Text("PT Achat", col=1),
                     Text("PT Vente", col=1),
                     Text("Gain", col=2),
-                    Container(
-                        padding=padding.only(left=10, right=10, bottom=5),
-                        bgcolor="white",
-                        border_radius=border_radius.all(10),
-                        col=4,
-                        height=40,
-                        content=self.produit_designation,
-                    ),
+                    self.container_designation,
                     self.quantite,
                     self.forme,
                     self.prix_unitaire_achat,
@@ -727,6 +753,7 @@ class EntreeStockView(Column):
                                     bgcolor="blue",
                                 ),
                                 on_click=self.add_medoce_panier,
+                                height=40,
                             ),
                         ],
                     ),
@@ -737,6 +764,36 @@ class EntreeStockView(Column):
     def __autocomplete_suggestions(self):
         for name in list_medocs_names:
             yield AutoCompleteSuggestion(key=name, value=name)
+
+    def __select_medoc_from_suggestion(self, e: AutoCompleteSelectEvent):
+        medoc = db.get_medocs_by_name(e.selection.key)
+        self.prix_unitaire_vente.value = str(medoc[0][6])
+        self.prix_unitaire_achat.value = str(medoc[0][4])
+        self.forme.value = medoc[0][11] or ""
+        self.prix_total_vente.value = (
+            str(
+                round(
+                    float(self.prix_unitaire_vente.value) * float(self.quantite.value),
+                    3,
+                )
+            )
+            or "0"
+        )
+        self.prix_total_achat.value = (
+            str(
+                round(
+                    float(self.prix_unitaire_achat.value) * float(self.quantite.value),
+                    3,
+                )
+            )
+            or "0"
+        )
+        self.prix_unitaire_achat.update()
+        self.prix_total_achat.update()
+        self.prix_unitaire_vente.update()
+        self.prix_total_vente.update()
+        self.page.update()
+        self.__update_prix_total(None)
 
     def add_medoce_panier(self, e):
         # if isinstance(e, list):
@@ -767,8 +824,10 @@ class EntreeStockView(Column):
             self.list_medocs_entree.update()
             self.__reinitialiser_entree()
         else:
-            self.page.snack_bar = SnackBar(
-                Text("Ce produit n'est pas disponible"), open=True
+            if self.page.overlay:
+                self.page.overlay.clear()
+            self.page.overlay.append(
+                SnackBar(Text("Ce produit n'est pas disponible"), open=True)
             )
             self.page.update()
         self.__calcul_totaux()
@@ -834,13 +893,18 @@ class EntreeStockView(Column):
         self.gain.update()
 
     def __reinitialiser_entree(self):
-        self.quantite.value = ""
-        self.forme.value = ""
-        self.prix_unitaire_achat.value = ""
-        self.prix_unitaire_vente.value = ""
-        self.prix_total_vente.value = ""
-        self.prix_total_achat.value = ""
-        self.gain.value = ""
+        self.quantite.value = "1"
+        self.forme.value = " "
+        self.prix_unitaire_achat.value = "0"
+        self.prix_unitaire_vente.value = "0"
+        self.prix_total_vente.value = "0"
+        self.prix_total_achat.value = "0"
+        self.gain.value = "0"
+        self.produit_designation = AutoComplete(
+            suggestions=list(self.__autocomplete_suggestions()),
+            on_select=self.__select_medoc_from_suggestion,
+        )
+        self.container_designation.content = self.produit_designation
 
         self.quantite.update()
         self.forme.update()
@@ -848,6 +912,7 @@ class EntreeStockView(Column):
         self.prix_unitaire_vente.update()
         self.prix_total_vente.update()
         self.prix_total_achat.update()
+        self.container_designation.update()
         self.gain.update()
 
     def __tout_reinitialiser(self, e):
@@ -863,39 +928,55 @@ class EntreeStockView(Column):
         self.__calcul_totaux()
         self.list_medocs_entree.update()
 
-    def __update_prix_total(self, e):
-        self.prix_total_achat.value = str(
-            round(
-                float(
-                    self.prix_unitaire_achat.value
-                    if self.prix_unitaire_achat.value
-                    else 0
+    def __finaliser_entree_medocs(self):
+        if not self.list_medocs_entree.controls:
+            return
+        for medoc in (
+            self.list_medocs_entree.controls if self.list_medocs_entree.controls else []
+        ):
+            medoc_id = db.get_medoc_id_by_name(medoc.nom.value)
+            medoc_quantite = db.get_medoc_quantity_by_id(medoc_id)
+            try:
+                db.add_new_medoc_to_accounts_mouvement_in(
+                    designation=medoc.forme.value or "",
+                    qte=int(medoc.quantite.value),
+                    pu=float(medoc.prix_unitaire_vente.value),
+                    produit_id=medoc_id,
+                    pv=float(medoc.prix_total_vente.value),
                 )
-                * float(self.quantite.value if self.quantite.value else 0),
-                3,
-            )
-        )
-        self.prix_total_achat.update()
-        self.prix_total_vente.value = str(
-            round(
-                float(
-                    self.prix_unitaire_vente.value
-                    if self.prix_unitaire_vente.value
-                    else 0
+                db.update_medoc_quantity_by_id(
+                    id=medoc_id,
+                    new_quantity=round(
+                        float(medoc_quantite) + int(medoc.quantite.value)
+                    ),
                 )
-                * float(self.quantite.value if self.quantite.value else 0),
-                3,
-            )
-        )
-        self.prix_total_vente.update()
-        self.__calcul_totaux()
-        self.gain.value = str(
-            round(
-                float(self.prix_total_vente.value) - float(self.prix_total_achat.value),
-                3,
-            )
-        )
-        self.gain.update()
+            except Exception as e:
+                print(e)
+                if self.page.overlay:
+                    self.page.overlay.clear()
+                self.page.overlay.append(
+                    SnackBar(
+                        Text("Une erreur est survenue, veuillez ressayer !"), open=True
+                    )
+                )
+                self.page.update()
+                return
+            else:
+                if self.page.overlay:
+                    self.page.overlay.clear()
+                self.page.overlay.append(
+                    SnackBar(Text("L'entrée a été effectuée avec succès !"), open=True)
+                )
+                self.page.update()
+        self.__tout_reinitialiser(None)
+
+    def __handler_keyboard_key(self, e: KeyboardEvent):
+        if self.page:
+            match e.key:
+                case "Escape":
+                    self.__reinitialiser_entree()
+                case "Enter":
+                    self.add_medoce_panier(None)
 
 
 class PrincipalView(Column):
@@ -930,6 +1011,7 @@ class PrincipalView(Column):
             on_change=lambda e: self.__calcul_totaux(),
         )
         self.page.on_keyboard_event = self.__handler_keyboard_key
+        self.change_devise_medoc = None
         self.nom_client = CustomTextField(
             label="Nom du client",
             prefix_icon=Icon(Icons.PERSON, color="black"),
@@ -1034,6 +1116,7 @@ class PrincipalView(Column):
                                                 bgcolor="#424242",
                                             ),
                                             on_click=self.__renitialiser_panier,
+                                            height=40,
                                         ),
                                         Button(
                                             "+ Draft",
@@ -1044,6 +1127,7 @@ class PrincipalView(Column):
                                                 bgcolor="green",
                                             ),
                                             on_click=self.__add_draft,
+                                            height=40,
                                         ),
                                     ],
                                 ),
@@ -1056,9 +1140,10 @@ class PrincipalView(Column):
                                         bgcolor="blue",
                                     ),
                                     width=170,
-                                    on_click=lambda e: self.page.run_task(
+                                    on_click=lambda e: self.page.run_thread(
                                         self.finaliser_vente
                                     ),
+                                    height=40,
                                 ),
                             ],
                         ),
@@ -1119,9 +1204,10 @@ class PrincipalView(Column):
                                                 bgcolor="blue",
                                             ),
                                             width=170,
-                                            on_click=lambda e: self.page.run_task(
+                                            on_click=lambda e: self.page.run_thread(
                                                 self.finaliser_vente
                                             ),
+                                            height=40,
                                         ),
                                     ],
                                 ),
@@ -1139,19 +1225,18 @@ class PrincipalView(Column):
 
     def handler_change_taux(self, taux):
         self.taux_dollar = taux
-        if self.devises.value == "$":
-            self.previous_devise = "FC"
-            self.__change_devise(taux)
 
     def __change_devise(self, e: ControlEvent | float):
         if self.previous_devise == self.devises.value:
             return
-        if isinstance(e, float):
-            taux = e
-        elif e.data == "$":
+        if e.data == "$":
             taux = float(self.taux_dollar) if self.taux_dollar else 1
+        elif e.data == "FC":
+            taux = 1 / float(self.taux_dollar) if self.taux_dollar else 1
         else:
             taux = 1
+        for medoc in self.list_medocs_panier.controls or []:
+            medoc.handler_devise_change(self.devises.value, taux)
         self.prix_unitaire.value = (
             round(float(self.prix_unitaire.value) / taux, 3)
             if self.prix_unitaire.value
@@ -1222,6 +1307,7 @@ class PrincipalView(Column):
                 self.produit_designation.selected_index
             ].value
         ):
+
             self.list_medocs_panier.controls.append(
                 Medicament(
                     nom=self.produit_designation.suggestions[
@@ -1237,13 +1323,14 @@ class PrincipalView(Column):
                     calcul_totaux=self.__calcul_totaux,
                 )
             )
-
             self.list_medocs_panier.update()
             self.__reinitialiser_entree()
         else:
             try:
-                self.page.snack_bar = SnackBar(
-                    Text("Ce produit n'est pas disponible"), open=True
+                if self.page.overlay:
+                    self.page.overlay.clear()
+                self.page.overlay.append(
+                    SnackBar(Text("Ce produit n'est pas disponible"), open=True)
                 )
             except:
                 pass
@@ -1334,6 +1421,7 @@ class PrincipalView(Column):
                                 ),
                                 on_click=self.add_medoce_panier,
                                 autofocus=True,
+                                height=40,
                             ),
                         ],
                     ),
@@ -1346,19 +1434,13 @@ class PrincipalView(Column):
             yield AutoCompleteSuggestion(key=name, value=name)
 
     def __calcul_totaux(self):
-        taux = (
-            1
-            if self.devises.value == "FC"
-            else float(self.taux_dollar) if self.taux_dollar else 1
-        )
         total = 0
         total_sans_charge_reduc = 0
         for medoc in self.list_medocs_panier.controls:
-            total += (
-                float(medoc.prix_total.value if medoc.prix_total.value else 0) / taux
-            )
-            total_sans_charge_reduc += (
-                float(medoc.prix_total.value if medoc.prix_total.value else 0) / taux
+            total += float(medoc.prix_total.value if medoc.prix_total.value else 0)
+
+            total_sans_charge_reduc += float(
+                medoc.prix_total.value if medoc.prix_total.value else 0
             )
         total += float(
             self.charges_connexes.value if self.charges_connexes.value else 0
@@ -1382,7 +1464,12 @@ class PrincipalView(Column):
 
     def __select_medoc_from_suggestion(self, e: AutoCompleteSelectEvent):
         medoc = db.get_medocs_by_name(e.selection.key)
-        self.prix_unitaire.value = str(medoc[0][6])
+        prix = (
+            (float(medoc[0][6]) / float(self.taux_dollar) or 0)
+            if self.devises.value == "$"
+            else float(medoc[0][6])
+        )  # prix de vente
+        self.prix_unitaire.value = str(round(prix, 4))
         self.forme.value = medoc[0][11] or ""
         self.prix_total.value = str(
             round(float(self.prix_unitaire.value) * float(self.quantite.value), 3)
@@ -1435,7 +1522,7 @@ class PrincipalView(Column):
         self.list_medocs_panier.update()
         self.__calcul_totaux()
 
-    async def finaliser_vente(self):
+    def finaliser_vente(self):
         if not self.list_medocs_panier.controls:
             return
         for medoc in (
@@ -1447,14 +1534,20 @@ class PrincipalView(Column):
                 float(medoc_quantite) < float(medoc.quantite.value)
                 or medoc_quantite == 0
             ):
-                self.page.snack_bar = SnackBar(
-                    Text(
-                        f"La quantité de {medoc.nom.value} disponible est insuffisante\nIl reste {medoc_quantite} en stock"
-                    ),
-                    open=True,
-                    duration=6000,
+                if self.page.overlay:
+                    self.page.overlay.clear()
+                self.page.overlay.append(
+                    SnackBar(
+                        Text(
+                            f"La quantité de {medoc.nom.value} disponible est insuffisante\nIl reste {medoc_quantite} en stock",
+                            color="white",
+                        ),
+                        open=True,
+                        duration=6000,
+                        bgcolor="red",
+                    )
                 )
-                await self.page.update_async()
+                self.page.update()
         num_facture = db.get_last_facture_id() + 1
         for medoc in (
             self.list_medocs_panier.controls if self.list_medocs_panier.controls else []
@@ -1476,26 +1569,35 @@ class PrincipalView(Column):
                     ),
                 )
                 db.add_to_accounts_mouvement_facture(
-                    quantite=int(medoc.quantite.value),
-                    forme=medoc.forme.value or "",
+                    quantite=int(medoc.quantite.value) or 0,
+                    forme=medoc.forme.value or " ",
                     produit=medoc.nom.value,
-                    prix_unitaire=float(medoc.prix_unitaire.value),
-                    prix_total=float(medoc.prix_total.value),
+                    prix_unitaire=round(float(medoc.prix_unitaire.value), 3) or 0,
+                    prix_total=round(float(medoc.prix_total.value), 3) or 0,
                     id_facture=num_facture,
                     nom_client=self.nom_client.value,
                     date=datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S"),
+                    devise=self.devises.value,
+                    reductions=round(float(self.reduction_accordee.value), 3) or 0.0,
+                    charges_connexes=round(float(self.charges_connexes.value), 3)
+                    or 0.0,
                 )
             except:
-                self.page.snack_bar = SnackBar(
-                    Text("Une erreur est survenue, veuillez ressayer !"), open=True
+                if self.page.overlay:
+                    self.page.overlay.clear()
+                self.page.overlay.append(
+                    SnackBar(
+                        Text("Une erreur est survenue, veuillez ressayer !"), open=True
+                    )
                 )
                 self.page.update()
                 return
-            else:
-                self.page.snack_bar = SnackBar(
-                    Text("La vente a été enregistrée avec succès"), open=True
-                )
-                self.page.update()
+        if self.page.overlay:
+            self.page.overlay.clear()
+        self.page.overlay.append(
+            SnackBar(Text("La vente a été enregistrée avec succès"), open=True)
+        )
+        self.page.update()
 
         self.imprimer_facture(num_facture)
 
@@ -1518,7 +1620,7 @@ class PrincipalView(Column):
             target=generer_facture,
             kwargs=dict(
                 list_medicaments=liste_medocs_facture,
-                prix_total=str(self.totaux.value) + " " + self.devises.value,
+                prix_total=str(self.totaux.value),
                 reduction=str(self.reduction_accordee.value) + " " + self.devises.value,
                 charges_connexes=str(self.charges_connexes.value)
                 + " "
@@ -1537,11 +1639,12 @@ class PrincipalView(Column):
         self.__renitialiser_panier(None)
 
     def __handler_keyboard_key(self, e: KeyboardEvent):
-        match e.key:
-            case "Escape":
-                self.__reinitialiser_entree(None)
-            case "Enter":
-                self.add_medoce_panier(None)
+        if self.page:
+            match e.key:
+                case "Escape":
+                    self.__reinitialiser_entree(None)
+                case "Enter":
+                    self.add_medoce_panier(None)
 
 
 class Accueil(Container):
@@ -1560,7 +1663,6 @@ class Accueil(Container):
             draft_handler=self.__add_draft,
             taux_dollar=self.taux_dollar.value,
         )
-        self.__ventes_view = Column()
         self.__clients_view = Column()
         self.current_view = Container(
             content=self.__principal_view, expand=True, expand_loose=True
@@ -1579,7 +1681,7 @@ class Accueil(Container):
             controls=[
                 Container(
                     bgcolor="#FFFFFF",
-                    width=self.page.width * 0.22,
+                    width=self.page.width * 0.20,
                     content=self._menu(),
                     clip_behavior=ClipBehavior.ANTI_ALIAS_WITH_SAVE_LAYER,
                     border_radius=border_radius.only(top_right=15),
@@ -1750,12 +1852,16 @@ class Accueil(Container):
     def __change_taux_dollar(self, e):
         if self.taux_dollar.value:
             self.__principal_view.handler_change_taux(float(self.taux_dollar.value))
-            self.page.snack_bar = SnackBar(
-                content=Text(
-                    f"Le taux du dollar a été modifié : 1$ = {self.taux_dollar.value} FC"
-                ),
-                open=True,
-                show_close_icon=True,
+            if self.page.overlay:
+                self.page.overlay.clear()
+            self.page.overlay.append(
+                SnackBar(
+                    content=Text(
+                        f"Le taux du dollar a été modifié : 1$ = {self.taux_dollar.value} FC"
+                    ),
+                    open=True,
+                    show_close_icon=True,
+                )
             )
             self.page.update()
 
@@ -1811,6 +1917,7 @@ class Accueil(Container):
             ),
             width=200,
             on_click=lambda e: self.page.run_thread(self.__add_medoc_to_db),
+            height=40,
         )
         self.dialog = AlertDialog(
             scrollable=True,
@@ -1857,6 +1964,7 @@ class Accueil(Container):
                     ),
                     width=200,
                     on_click=self.__renitialiser_produit,
+                    height=40,
                 ),
                 self.button_ajouter,
             ],
@@ -1876,7 +1984,7 @@ class Accueil(Container):
             self.page.update()
 
     def __add_draft(self, list_draft, nom_client, date):
-        self.list_medocs_dracontrols.append(
+        self.list_medocs_draft.controls.append(
             CustomDraftButton(
                 self.page,
                 list_draft,
@@ -1886,7 +1994,7 @@ class Accueil(Container):
                 self.__load_draft,
             )
         )
-        self.list_medocs_draupdate()
+        self.list_medocs_draft.update()
 
     def __verifier_produit(self, e):
         if self.nom.value:
@@ -1907,13 +2015,19 @@ class Accueil(Container):
         if self.db_file_picked.value != " ":
             try:
                 db.import_csv_to_db(self.path_csv)
-                self.page.snack_bar = SnackBar(
-                    Text("Les produits ont été ajoutés avec succès"), open=True
+                if self.page.overlay:
+                    self.page.overlay.clear()
+                self.page.overlay.append(
+                    SnackBar(
+                        Text("Les produits ont été ajoutés avec succès"), open=True
+                    )
                 )
                 self.page.update()
             except Exception as e:
-                self.page.snack_bar = SnackBar(
-                    Text("Une erreur est survenue !"), open=True
+                if self.page.overlay:
+                    self.page.overlay.clear()
+                self.page.overlay.append(
+                    SnackBar(Text("Une erreur est survenue !"), open=True)
                 )
                 self.page.update()
             finally:
@@ -1946,12 +2060,16 @@ class Accueil(Container):
                 )
 
             except:
-                self.page.snack_bar = SnackBar(
-                    Text("Erreur lors de l'ajout du produit"), open=True
+                if self.page.overlay:
+                    self.page.overlay.clear()
+                self.page.overlay.append(
+                    SnackBar(Text("Erreur lors de l'ajout du produit"), open=True)
                 )
             else:
-                self.page.snack_bar = SnackBar(
-                    Text("Le produit a été ajouté avec succès"), open=True
+                if self.page.overlay:
+                    self.page.overlay.clear()
+                self.page.overlay.append(
+                    SnackBar(Text("Le produit a été ajouté avec succès"), open=True)
                 )
                 self.__renitialiser_produit(None)
             finally:
@@ -1972,8 +2090,8 @@ class Accueil(Container):
         self.db_file_picked.update()
 
     def __delete_draft(self, e):
-        self.list_medocs_dracontrols.remove(e)
-        self.list_medocs_draupdate()
+        self.list_medocs_draft.controls.remove(e)
+        self.list_medocs_draft.update()
 
     def __load_draft(self, e):
         self.__principal_view.load_draft(e.list_medicaments, e.nom_client)
@@ -2012,10 +2130,10 @@ class VenteView(Column):
                     Icons.CLOSE,
                     icon_color="black",
                     icon_size=18,
-                    on_click=lambda e: self.page.run_task(self.__restore_search_bar),
+                    on_click=lambda e: self.page.run_thread(self.__restore_search_bar),
                 )
             ],
-            on_blur=lambda e: self.page.run_task(self.__search_invoice),
+            on_blur=lambda e: self.page.run_thread(self.__search_invoice),
         )
         self.data_table = DataTable(
             expand=True,
@@ -2081,6 +2199,7 @@ class VenteView(Column):
                                         bgcolor="blue",
                                     ),
                                     on_click=self.handler_entree_produit,
+                                    height=40,
                                 ),
                                 Button(
                                     "+ Entrée Stock",
@@ -2091,6 +2210,7 @@ class VenteView(Column):
                                         bgcolor="blue",
                                     ),
                                     on_click=self.handler_entree_stock,
+                                    height=40,
                                 ),
                                 Button(
                                     " ",
@@ -2102,6 +2222,7 @@ class VenteView(Column):
                                     ),
                                     icon=Icons.LOOP,
                                     icon_color="blue",
+                                    height=40,
                                 ),
                             ],
                         ),
@@ -2115,7 +2236,7 @@ class VenteView(Column):
                 content=Column(
                     expand=True,
                     horizontal_alignment=CrossAxisAlignment.STRETCH,
-                    scroll=ScrollMode.AUTO,
+                    scroll=ScrollMode.ALWAYS,
                     controls=[self.data_table],
                 ),
             ),
@@ -2132,6 +2253,7 @@ class VenteView(Column):
                             color="white",
                             bgcolor="blue",
                         ),
+                        height=40,
                     ),
                     Text(f"Page {self.current_page + 1} sur {self.total_pages}"),
                     Button(
@@ -2144,27 +2266,32 @@ class VenteView(Column):
                             color="white",
                             bgcolor="blue",
                         ),
+                        height=40,
                     ),
                 ],
             ),
         ]
 
-    async def __restore_search_bar(self):
+    def __restore_search_bar(self):
         self.search_bar.value = ""
         self.search_bar.update()
         self.data_table.rows = list(self.__invoices())
-        await self.data_table.update_async()
+        self.data_table.update()
 
-    async def __search_invoice(self):
+    def __search_invoice(self):
         invoices_found = db.get_all_mouvement_facture_by_id_facture(
             self.search_bar.value
         )
         if invoices_found:
             self.data_table.rows = list(self.__invoices_searched(invoices_found))
-            await self.data_table.update_async()
+            self.data_table.update()
         else:
-            self.page.snack_bar = SnackBar(Text("Aucune facture trouvée"), open=True)
-        await self.page.update_async()
+            if self.page.overlay:
+                self.page.overlay.clear()
+            self.page.overlay.append(
+                SnackBar(Text("Aucune facture trouvée"), open=True)
+            )
+        self.page.update()
 
     def __invoices_searched(self, invoices_found):
         unique_invoices = {}
@@ -2264,13 +2391,14 @@ class VenteView(Column):
                     medoc[5],
                 ]
             )
+        totaux = montant_total - list_medocs[0][10] + list_medocs[0][11]
         facture_thread = Thread(
             target=generer_facture,
             kwargs=dict(
                 list_medicaments=liste_medocs_facture,
-                prix_total=str(montant_total) + " FC",
-                reduction="0 FC",
-                charges_connexes="0 FC",
+                prix_total=str(montant_total) + list_medocs[0][9],
+                reduction=str(list_medocs[0][10]) + " " + list_medocs[0][9],
+                charges_connexes=str(list_medocs[0][11]) + " " + list_medocs[0][9],
                 date=date,
                 nom_client=nom_client,
                 num_facture=invoice_id,
@@ -2278,8 +2406,10 @@ class VenteView(Column):
                 + str(invoice_id)
                 + "-"
                 + str(datetime.datetime.now().year),
-                montant_final="Net à payer : " + str(montant_total) + " FC",
-                montant_en_lettres=number_to_words(montant_total) + " FC",
+                montant_final=str(totaux) + " " + list_medocs[0][9],
+                montant_en_lettres=number_to_words(round(float(montant_total), 3))
+                + " "
+                + list_medocs[0][9],
             ),
         )
         facture_thread.start()
@@ -2497,6 +2627,7 @@ def main(page: Page):
             page.open(confirm_dialog)
 
     def yes_click(e):
+        db.close()
         page.window.destroy()
         # page.update()
 

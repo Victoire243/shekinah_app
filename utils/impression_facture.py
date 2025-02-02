@@ -22,7 +22,12 @@ def generer_facture(
     num_facture,
     montant_en_lettres,
 ):
-    fichier_sortie = "facture_test.pdf"
+    dossier_sortie = (
+        str(os.path.expanduser("~")).replace("\\", "/") + "/Factures SHEKINA PHARMA/"
+    )
+    if not os.path.exists(dossier_sortie):
+        os.makedirs(dossier_sortie)
+    fichier_sortie = dossier_sortie + f"facture_{num_facture}.pdf"
     c = canvas.Canvas(filename=fichier_sortie, pagesize=A4)
     width, height = A4
 
@@ -198,12 +203,12 @@ def ouvrir_fichier(fichier_pdf):
     else:
         print("Système d'exploitation non supporté pour l'ouverture automatique.")
 
-    # deplacer le fichier dans le dossier de l'utilisateur (ecrasser le fichier si il existe)
-    try:
-        shutil.copy(fichier_pdf, os.path.expanduser("~"))
-    except Exception as e:
-        pass
-    # shutil.move(fichier_pdf, os.path.expanduser("~"))
+    # # deplacer le fichier dans le dossier de l'utilisateur (ecrasser le fichier si il existe)
+    # try:
+    #     shutil.copy(fichier_pdf, str(os.path.expanduser("~")) + "Facture")
+    # except Exception as e:
+    #     pass
+    # # shutil.move(fichier_pdf, os.path.expanduser("~"))
 
 
 # # Exemple d'utilisation

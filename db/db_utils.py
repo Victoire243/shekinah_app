@@ -8,6 +8,7 @@ class DBUtils:
         self.db_path = db_path
         self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self.cursor = self.conn.cursor()
+        self.second_cursor = self.conn.cursor()
 
     def insert(self, table_name, values):
         values_str = ", ".join([f"'{v}'" for v in values])
@@ -16,10 +17,14 @@ class DBUtils:
 
     def select(self, table_name, columns):
         columns_str = ", ".join(columns)
-        resultat = self.cursor.execute(
-            f"SELECT {columns_str} FROM {table_name}"
-        ).fetchall()
-        return resultat if resultat else []
+        try:
+            resultat = self.second_cursor.execute(
+                f"SELECT {columns_str} FROM {table_name}"
+            ).fetchall()
+        except sqlite3.ProgrammingError:
+            return []
+        else:
+            return resultat if resultat else []
 
     def close(self):
         self.conn.close()
@@ -30,7 +35,7 @@ class DBUtils:
         return list(medocs)
 
     def list_tables(self):
-        return self.cursor.execute(
+        return self.second_cursor.execute(
             "SELECT name FROM sqlite_master WHERE type='table';"
         ).fetchall()
 
@@ -51,18 +56,23 @@ class DBUtils:
         )
 
     def get_medocs_for_list_preview_by_containing_name(self, name: str):
-        return self.cursor.execute(
-            f"SELECT nom, marque, date_entree, date_dexpiration, prix_achat, prix_vente FROM accounts_produit WHERE nom LIKE '%{name.upper().strip()}%'"
-        ).fetchall()
+        try:
+            result = self.second_cursor.execute(
+                f"SELECT nom, marque, date_entree, date_dexpiration, prix_achat, prix_vente FROM accounts_produit WHERE nom LIKE '%{name.upper().strip()}%'"
+            ).fetchall()
+        except sqlite3.ProgrammingError:
+            return []
+        else:
+            return result if result else []
 
     def get_medocs_by_name(self, name: str):
-        return self.cursor.execute(
+        return self.second_cursor.execute(
             f"SELECT * FROM accounts_produit WHERE nom = '{name.upper()}'"
         ).fetchall()
 
     def is_medoc_exists(self, name: str):
         return bool(
-            self.cursor.execute(
+            self.second_cursor.execute(
                 f"SELECT * FROM accounts_produit WHERE nom = '{name.upper().strip()}'"
             ).fetchall()
         )
@@ -112,24 +122,24 @@ class DBUtils:
         self.conn.commit()
 
     def get_all_medocs_names(self):
-        return self.cursor.execute("SELECT nom FROM accounts_produit").fetchall()
+        return self.second_cursor.execute("SELECT nom FROM accounts_produit").fetchall()
 
     def get_all_medocs_names_as_list(self):
         return [medoc[0] for medoc in self.get_all_medocs_names()]
 
     def get_medoc_quantity(self, name: str):
-        return self.cursor.execute(
+        return self.second_cursor.execute(
             f"SELECT quantite FROM accounts_produit WHERE nom = '{name.upper().strip()}'"
         ).fetchone()[0]
 
     def get_medoc_quantity_by_id(self, id: int | str):
-        result = self.cursor.execute(
+        result = self.second_cursor.execute(
             f"SELECT qte FROM accounts_mouvement WHERE produit_id = {id}"
         ).fetchone()
         return result[0] if result else 0
 
     def get_medoc_id_by_name(self, name: str):
-        return self.cursor.execute(
+        return self.second_cursor.execute(
             f"SELECT id FROM accounts_produit WHERE nom = '{name.upper().strip()}'"
         ).fetchone()[0]
 
@@ -155,14 +165,14 @@ class DBUtils:
         self.conn.commit()
 
     def get_medoc(self, name):
-        return self.cursor.execute(
+        return self.second_cursor.execute(
             f"SELECT * FROM accounts_produit WHERE nom = '{name}'"
         ).fetchone()
 
     def get_medoc_fields(self):
         return [
             description[0]
-            for description in self.cursor.execute(
+            for description in self.second_cursor.execute(
                 "PRAGMA table_info(accounts_produit)"
             ).fetchall()
         ]
@@ -170,7 +180,7 @@ class DBUtils:
     def get_medoc_fields_types(self):
         return [
             description[2]
-            for description in self.cursor.execute(
+            for description in self.second_cursor.execute(
                 "PRAGMA table_info(accounts_produit)"
             ).fetchall()
         ]
@@ -178,7 +188,7 @@ class DBUtils:
     def get_medoc_fields_as_dict(self):
         return {
             description[1]: description[2]
-            for description in self.cursor.execute(
+            for description in self.second_cursor.execute(
                 "PRAGMA table_info(accounts_produit)"
             ).fetchall()
         }
@@ -186,7 +196,7 @@ class DBUtils:
     def get_medoc_fields_types_as_dict(self):
         return {
             description[1]: description[2]
-            for description in self.cursor.execute(
+            for description in self.second_cursor.execute(
                 "PRAGMA table_info(accounts_produit)"
             ).fetchall()
         }
@@ -194,7 +204,7 @@ class DBUtils:
     def get_medoc_fields_as_list(self):
         return [
             description[1]
-            for description in self.cursor.execute(
+            for description in self.second_cursor.execute(
                 "PRAGMA table_info(accounts_produit)"
             ).fetchall()
         ]
@@ -202,7 +212,7 @@ class DBUtils:
     def get_medoc_fields_types_as_list(self):
         return [
             description[2]
-            for description in self.cursor.execute(
+            for description in self.second_cursor.execute(
                 "PRAGMA table_info(accounts_produit)"
             ).fetchall()
         ]
@@ -210,7 +220,7 @@ class DBUtils:
     def get_table_fields_as_list(self, table_name="accounts_produit"):
         return [
             description[1]
-            for description in self.cursor.execute(
+            for description in self.second_cursor.execute(
                 f"PRAGMA table_info({table_name})"
             ).fetchall()
         ]
@@ -218,7 +228,7 @@ class DBUtils:
     def get_table_fields_types_as_dict(self, table_name):
         return {
             description[1]: description[2]
-            for description in self.cursor.execute(
+            for description in self.second_cursor.execute(
                 f"PRAGMA table_info({table_name})"
             ).fetchall()
         }
@@ -239,7 +249,7 @@ class DBUtils:
             100,
             medoc[4],
             "entrée",
-            self.cursor.execute(
+            self.second_cursor.execute(
                 f"SELECT id FROM accounts_produit WHERE nom = '{medoc[0]}'"
             ).fetchone()[0],
             medoc[5],
@@ -279,6 +289,24 @@ class DBUtils:
             medoc,
         )
 
+    def add_new_medoc_to_accounts_mouvement_in(
+        self, designation, qte, pu, produit_id, pv
+    ):
+        medoc = (
+            designation,
+            qte,
+            pu,
+            "entree",
+            produit_id,
+            datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            pv,
+        )
+        self.insert_fields(
+            "accounts_mouvement",
+            ("designation", "qte", "pu", "typ", "produit_id", "date", "pv"),
+            medoc,
+        )
+
     def add_to_accounts_mouvement_facture(
         self,
         quantite,
@@ -289,6 +317,9 @@ class DBUtils:
         id_facture,
         nom_client,
         date,
+        devise,
+        reductions,
+        charges_connexes,
     ):
         self.insert_fields(
             "accounts_mouvement_facture",
@@ -301,6 +332,9 @@ class DBUtils:
                 "id_facture",
                 "nom_client",
                 "date",
+                "devise",
+                "reductions",
+                "charges_connexes",
             ),
             (
                 quantite,
@@ -311,6 +345,9 @@ class DBUtils:
                 id_facture,
                 nom_client,
                 date,
+                devise,
+                reductions,
+                charges_connexes,
             ),
         )
 
@@ -318,19 +355,19 @@ class DBUtils:
         return self.select("accounts_mouvement_facture", ["*"])
 
     def get_all_mouvement_facture_by_id_facture(self, id_facture):
-        resultat = self.cursor.execute(
+        resultat = self.second_cursor.execute(
             f"SELECT * FROM accounts_mouvement_facture WHERE id_facture = {id_facture if id_facture else 0}"
         ).fetchall()
         return resultat if resultat else []
 
     def get_last_facture_id(self):
-        result = self.cursor.execute(
+        result = self.second_cursor.execute(
             "SELECT id_facture FROM accounts_mouvement_facture facture ORDER BY id DESC LIMIT 1"
         ).fetchone()
         return result[0] if result else 0
 
     def get_last_mouve_id(self):
-        result = self.cursor.execute(
+        result = self.second_cursor.execute(
             "SELECT id FROM accounts_mouvement ORDER BY id DESC LIMIT 1"
         ).fetchone()
         return result[0] if result else 0
@@ -343,7 +380,7 @@ class DBUtils:
                     self.add_medoc(
                         (
                             row["nom"].upper().strip(),
-                            row["marque"].upper().strip(),
+                            row["designation_entree"].upper().strip(),
                             row["date_entree"],
                             row["date_dexpiration"],
                             row["prix_achat"],
@@ -369,4 +406,5 @@ if __name__ == "__main__":
     db = DBUtils("assets/db/db_test.sqlite3")
     # db.delete_all_table_data("accounts_mouvement_facture")
     db.import_csv_to_db("assets/db/produits.csv")
+    # db.delete_all_data()
     db.close()
