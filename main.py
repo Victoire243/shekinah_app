@@ -305,7 +305,7 @@ class ProduitsView(Column):
                 cells=[
                     DataCell(Text(medoc[0])),
                     DataCell(Text(medoc[1])),
-                    DataCell(Text(medoc[2])),
+                    DataCell(Text(medoc[2]), visible=False),
                     DataCell(Text(medoc[3])),
                     DataCell(Text(medoc[4])),
                     DataCell(Text(medoc[5])),
