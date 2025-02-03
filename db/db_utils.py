@@ -405,6 +405,6 @@ class DBUtils:
 if __name__ == "__main__":
     db = DBUtils("assets/db/db_test.sqlite3")
     # db.delete_all_table_data("accounts_mouvement_facture")
-    db.import_csv_to_db("assets/db/produits.csv")
+    # db.import_csv_to_db("assets/db/produits.csv")
     # db.delete_all_data()
     db.close()

@@ -71,6 +71,7 @@ from flet import (
     OutlinedButton,
     View,
     Badge,
+    Switch,
 )
 
 
@@ -1065,6 +1066,7 @@ class PrincipalView(Column):
             size=12,
             expand=True,
         )
+        self.switch_speaker = Switch(value=False)
         self.controls = [
             Container(
                 bgcolor="#f0f0f0",
@@ -1096,6 +1098,7 @@ class PrincipalView(Column):
                                                     self.__speack
                                                 ),
                                             ),
+                                            self.switch_speaker,
                                         ],
                                     ),
                                 ),
@@ -1321,6 +1324,7 @@ class PrincipalView(Column):
                     prix_total=self.prix_total.value,
                     medoc_delete=self.__delete_medoc,
                     calcul_totaux=self.__calcul_totaux,
+                    devise_initiale=self.devises.value or "FC",
                 )
             )
             self.list_medocs_panier.update()
@@ -1446,7 +1450,7 @@ class PrincipalView(Column):
                                 expand=True,
                                 controls=[
                                     self.prix_total,
-                                    Text("FC"),
+                                    Text(self.devises.value or "FC"),
                                 ],
                             ),
                             Button(
@@ -1553,6 +1557,11 @@ class PrincipalView(Column):
         speaker.speaker.setProperty("rate", 210)
         speaker.say(f"Le montant à payer est de {self.montant_chiffre.value} {devise}")
 
+    def __speack_with_args(self, text: str, devise: str):
+        speaker = Speaker()
+        speaker.speaker.setProperty("rate", 210)
+        speaker.say(f"Le montant à payer est de {text} {devise}")
+
     def load_draft(self, draft_list, nom_client):
         self.list_medocs_panier.controls = draft_list
         self.nom_client.value = nom_client
@@ -1630,6 +1639,12 @@ class PrincipalView(Column):
                 )
                 self.page.update()
                 return
+        if self.switch_speaker.value:
+            self.page.run_thread(
+                self.__speack_with_args,
+                self.montant_chiffre.value,
+                "francs" if self.devises.value == "FC" else "dollars",
+            )
         if self.page.overlay:
             self.page.overlay.clear()
         self.page.overlay.append(
@@ -2540,7 +2555,7 @@ class TableauBordView(Column):
         total_vendu = 0
         for invoice in db.get_all_mouvement_facture():
             total_vendu += float(invoice[5])
-        return str(total_vendu) + " FC"
+        return str(round(total_vendu, 3)) + " FC"
 
     def __total_vendu_aujourdhui(self):
         total_vendu_aujourdhui = 0
@@ -2548,17 +2563,19 @@ class TableauBordView(Column):
         for invoice in db.get_all_mouvement_facture():
             if invoice[8].startswith(today):
                 total_vendu_aujourdhui += float(invoice[5])
-        return str(total_vendu_aujourdhui) + " FC"
+        return str(round(total_vendu_aujourdhui, 3)) + " FC"
 
     def __total_derniere_vente(self):
         total_derniere_vente = 0
+        devise = "FC"
         all_invoices = db.get_all_mouvement_facture()
         if all_invoices:
             last_invoice_id = all_invoices[-1][6]
             for invoice in all_invoices:
                 if invoice[6] == last_invoice_id:
                     total_derniere_vente += float(invoice[5])
-        return str(total_derniere_vente) + " FC"
+                    devise = invoice[9]
+        return str(round(total_derniere_vente, 3)) + " " + devise
 
     def __medoc_le_plus_vendu(self):
         medoc_sales = {}

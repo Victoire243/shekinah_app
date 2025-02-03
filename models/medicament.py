@@ -26,6 +26,7 @@ class Medicament(Container):
         prix_total,
         medoc_delete,
         calcul_totaux=None,
+        devise_initiale="FC",
     ):
         super().__init__()
         self.__calcul_totaux = calcul_totaux
@@ -50,7 +51,7 @@ class Medicament(Container):
         self.margin = margin.only(left=20, right=20, top=5, bottom=5)
         self.bgcolor = "#DBDBDB"
         self.padding = padding.all(10)
-        self.devise = Text("FC")
+        self.devise = Text(devise_initiale, weight=FontWeight.BOLD, col=1)
         self.content = ResponsiveRow(
             controls=[
                 self.nom,
