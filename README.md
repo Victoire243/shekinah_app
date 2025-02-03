@@ -1,4 +1,3 @@
-```markdown
 # Logiciel de Gestion de Pharmacie Shekinah
 
 Bienvenue dans notre logiciel de gestion de pharmacie, conçu spécialement pour la pharmacie Shekinah. Ce puissant outil offre une solution complète et intuitive pour gérer efficacement tous les aspects de votre pharmacie.
@@ -17,16 +16,17 @@ Bienvenue dans notre logiciel de gestion de pharmacie, conçu spécialement pour
 ## Technologies Utilisées
 
 Ce logiciel a été développé en utilisant les technologies suivantes :
+
 - **Python** : Langage de programmation puissant et polyvalent.
 - **Flet** : Framework pour créer des applications modernes et réactives.
 
 ## Captures d'Écran
 
-..
+...
 
 ## Installation
 
-*Pour installer double-cliquer sur l'installateur et suivre les étapes.*
+*Pour installer, double-cliquez sur l'installateur et suivez les étapes.*
 
 ## Contribution
 
@@ -35,5 +35,4 @@ Nous accueillons chaleureusement les contributions de la communauté. Veuillez l
 ---
 
 Optimisez la gestion de votre pharmacie avec notre logiciel dédié, et concentrez-vous sur l'essentiel : prendre soin de vos patients.
-https://kabod.free.nf
-```
+[https://kabod.free.nf](https://kabod.free.nf)

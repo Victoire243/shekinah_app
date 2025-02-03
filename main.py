@@ -1353,14 +1353,52 @@ class PrincipalView(Column):
         self.__reinitialiser_entree()
         self.list_medocs_panier.update()
 
+    def __incrise_quantite(self, e):
+        self.quantite.value = (
+            str(int(self.quantite.value) + 1) if self.quantite.value else 1
+        )
+        self.quantite.update()
+
+    def __desincrise_quantite(self, e):
+        if self.quantite.value and int(self.quantite.value) > 0:
+            self.quantite.value = str(int(self.quantite.value) - 1)
+        else:
+            self.quantite.value = "0"
+        self.quantite.update()
+
     def __input_medoc(self):
         self.quantite = CustomTextField(
-            label="Quantité",
             value="1",
             input_filter=NumbersOnlyInputFilter(),
             col=1,
             on_change=self.__update_prix_total,
             on_submit=self.add_medoce_panier,
+            suffix=Column(
+                alignment=MainAxisAlignment.START,
+                horizontal_alignment=CrossAxisAlignment.CENTER,
+                spacing=0,
+                tight=True,
+                controls=[
+                    IconButton(
+                        icon=Icons.ARROW_DROP_UP,
+                        icon_color="black",
+                        icon_size=20,
+                        padding=padding.all(0),
+                        height=15,
+                        width=20,
+                        on_click=self.__incrise_quantite,
+                    ),
+                    IconButton(
+                        icon=Icons.ARROW_DROP_DOWN,
+                        icon_color="black",
+                        icon_size=20,
+                        padding=padding.all(0),
+                        height=15,
+                        width=20,
+                        on_click=self.__desincrise_quantite,
+                    ),
+                ],
+            ),
         )
         self.forme = CustomTextField(
             label="Forme", col=2, on_submit=self.add_medoce_panier
@@ -2644,8 +2682,8 @@ def main(page: Page):
     page.theme = Theme(font_family="Poppins")
     page.window.center()
     page.window.maximized = True
-    page.window.prevent_close = True
-    page.window.on_event = handle_window_event
+    # page.window.prevent_close = True
+    # page.window.on_event = handle_window_event
 
     confirm_dialog = AlertDialog(
         modal=True,
