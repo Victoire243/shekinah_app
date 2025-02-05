@@ -7,6 +7,7 @@ from models.medicament_entree import MedicamentEntree
 from utils.impression_facture import generer_facture
 from views.login_view import LoginView
 from models.medicament import Medicament
+import pickle
 from pathlib import Path
 from utils.speaker import Speaker
 from db.db_utils import DBUtils
@@ -80,16 +81,28 @@ current_directory = (
     + "/assets/db/db_test.sqlite3"
 )
 
+drafts_directory = (
+    str(Path(__file__).parent.resolve()).replace("\\", "/") + "/assets/drafts/drafts.df"
+)
+
+
 db = DBUtils(current_directory)
-list_medocs_names = db.get_all_medocs_list()
-list_medocs_for_preview = db.get_medocs_for_list_preview()
+# list_medocs_names = db.get_all_medocs_list()
+# list_medocs_for_preview = db.get_medocs_for_list_preview()
 
 
-def update_lists_medocs():
-    global list_medocs_for_preview
-    global list_medocs_names
-    list_medocs_names = db.get_all_medocs_list()
-    list_medocs_for_preview = db.get_medocs_for_list_preview()
+def init_load_drafts():
+    try:
+        with open(drafts_directory, "rb") as f:
+            drafts = pickle.load(f)
+    except:
+        drafts = []
+    return drafts
+
+
+def save_drafts(drafts):
+    with open(drafts_directory, "wb") as f:
+        pickle.dump(drafts, f)
 
 
 class ProduitsView(Column):
@@ -104,7 +117,8 @@ class ProduitsView(Column):
         self.expand = True
         self.horizontal_alignment = CrossAxisAlignment.STRETCH
         self.items_per_page = 50
-        self.total_items = len(list_medocs_for_preview)
+        self.all_medocs_for_preview = db.get_medocs_for_list_preview()
+        self.total_items = len(self.all_medocs_for_preview)
         self.total_pages = (
             self.total_items + self.items_per_page - 1
         ) // self.items_per_page
@@ -324,7 +338,7 @@ class ProduitsView(Column):
     def __products(self):
         start_index = self.current_page * self.items_per_page
         end_index = start_index + self.items_per_page
-        for medoc in list_medocs_for_preview[start_index:end_index]:
+        for medoc in self.all_medocs_for_preview[start_index:end_index]:
             try:
                 quantite = db.get_medoc_quantity_by_id(
                     db.get_medoc_id_by_name(medoc[0])
@@ -511,6 +525,7 @@ class ProduitsView(Column):
                 medoc_id = db.get_medoc_id_by_name(self.nom.value)
                 db.update_medoc_quantity_by_id(medoc_id, int(self.stock_quantite.value))
                 db.update_medoc_designation_by_id(medoc_id, self.forme.value)
+                self.all_medocs_for_preview = db.get_medocs_for_list_preview()
             except:
                 if self.page.overlay:
                     self.page.overlay.clear()
@@ -520,7 +535,6 @@ class ProduitsView(Column):
                     )
                 )
             else:
-                update_lists_medocs()
                 self.page.close(self.dialog)
                 if self.page.overlay:
                     self.page.overlay.clear()
@@ -539,6 +553,7 @@ class ProduitsView(Column):
         if self.nom.value:
             try:
                 db.delete_medoc(self.nom.value)
+                self.all_medocs_for_preview = db.get_medocs_for_list_preview()
             except:
                 if self.page.overlay:
                     self.page.overlay.clear()
@@ -548,7 +563,7 @@ class ProduitsView(Column):
                     )
                 )
             else:
-                update_lists_medocs()
+
                 self.page.close(self.dialog)
                 if self.page.overlay:
                     self.page.overlay.clear()
@@ -566,7 +581,8 @@ class EntreeStockView(Column):
         super().__init__()
         self.page = page
         self.spacing = 0
-        self.page.on_keyboard_event = self.__handler_keyboard_key
+        self.list_all_medocs_db = db.get_all_medocs_list()
+        self.page.on_keyboard_event = self.handler_keyboard_key
         self.list_medocs_entree = ListView(
             auto_scroll=True,
             controls=[],
@@ -582,6 +598,32 @@ class EntreeStockView(Column):
             input_filter=NumbersOnlyInputFilter(),
             col=1,
             on_change=self.__update_prix_total,
+            suffix=Column(
+                alignment=MainAxisAlignment.START,
+                horizontal_alignment=CrossAxisAlignment.CENTER,
+                spacing=0,
+                tight=True,
+                controls=[
+                    IconButton(
+                        icon=Icons.ARROW_DROP_UP,
+                        icon_color="black",
+                        icon_size=20,
+                        padding=padding.all(0),
+                        height=15,
+                        width=20,
+                        on_click=self.__incrise_quantite,
+                    ),
+                    IconButton(
+                        icon=Icons.ARROW_DROP_DOWN,
+                        icon_color="black",
+                        icon_size=20,
+                        padding=padding.all(0),
+                        height=15,
+                        width=20,
+                        on_click=self.__desincrise_quantite,
+                    ),
+                ],
+            ),
         )
         self.forme = CustomTextField(col=1)
         self.prix_unitaire_achat = CustomTextField(
@@ -637,79 +679,81 @@ class EntreeStockView(Column):
             ),
             self.__input_medocs(),
             Column(
-                scroll=ScrollMode.AUTO,
+                scroll=ScrollMode.ALWAYS,
+                expand=True,
+                auto_scroll=True,
                 controls=[
                     self.list_medocs_entree,
-                    Container(
-                        bgcolor="#8B8B8B",
-                        padding=padding.symmetric(vertical=10, horizontal=20),
-                        content=Row(
-                            alignment=MainAxisAlignment.END,
-                            controls=[
-                                Container(
-                                    bgcolor="blue",
-                                    padding=padding.all(10),
-                                    border_radius=border_radius.all(10),
-                                    content=Row(
-                                        controls=[
-                                            Text("TOTAUX ACHAT", color="white"),
-                                            self.totaux_achat,
-                                            Text("FC", color="white"),
-                                        ]
-                                    ),
-                                ),
-                                Container(
-                                    bgcolor="blue",
-                                    padding=padding.all(10),
-                                    border_radius=border_radius.all(10),
-                                    content=Row(
-                                        controls=[
-                                            Text("TOTAUX VENTE", color="white"),
-                                            self.totaux_vente,
-                                            Text("FC", color="white"),
-                                        ]
-                                    ),
-                                ),
-                                Container(
-                                    bgcolor="blue",
-                                    padding=padding.all(10),
-                                    border_radius=border_radius.all(10),
-                                    content=Row(
-                                        controls=[
-                                            Text("TOTAUX GAIN", color="white"),
-                                            self.totaux_gain,
-                                            Text("FC", color="white"),
-                                        ]
-                                    ),
-                                ),
-                                Button(
-                                    "Reinitialiser",
-                                    elevation=1,
-                                    style=ButtonStyle(
-                                        shape=RoundedRectangleBorder(10),
-                                        color="white",
-                                        bgcolor="#424242",
-                                    ),
-                                    on_click=self.__tout_reinitialiser,
-                                    height=40,
-                                ),
-                                Button(
-                                    "Terminer",
-                                    elevation=1,
-                                    style=ButtonStyle(
-                                        shape=RoundedRectangleBorder(10),
-                                        color="white",
-                                        bgcolor="green",
-                                    ),
-                                    height=40,
-                                    on_click=lambda e: self.page.run_thread(
-                                        self.__finaliser_entree_medocs
-                                    ),
-                                ),
-                            ],
-                        ),
-                    ),
                 ],
+            ),
+            Container(
+                bgcolor="#8B8B8B",
+                padding=padding.symmetric(vertical=10, horizontal=20),
+                content=Row(
+                    alignment=MainAxisAlignment.END,
+                    controls=[
+                        Container(
+                            bgcolor="blue",
+                            padding=padding.all(10),
+                            border_radius=border_radius.all(10),
+                            content=Row(
+                                controls=[
+                                    Text("TOTAUX ACHAT", color="white"),
+                                    self.totaux_achat,
+                                    Text("FC", color="white"),
+                                ]
+                            ),
+                        ),
+                        Container(
+                            bgcolor="blue",
+                            padding=padding.all(10),
+                            border_radius=border_radius.all(10),
+                            content=Row(
+                                controls=[
+                                    Text("TOTAUX VENTE", color="white"),
+                                    self.totaux_vente,
+                                    Text("FC", color="white"),
+                                ]
+                            ),
+                        ),
+                        Container(
+                            bgcolor="blue",
+                            padding=padding.all(10),
+                            border_radius=border_radius.all(10),
+                            content=Row(
+                                controls=[
+                                    Text("TOTAUX GAIN", color="white"),
+                                    self.totaux_gain,
+                                    Text("FC", color="white"),
+                                ]
+                            ),
+                        ),
+                        Button(
+                            "Reinitialiser",
+                            elevation=1,
+                            style=ButtonStyle(
+                                shape=RoundedRectangleBorder(10),
+                                color="white",
+                                bgcolor="#424242",
+                            ),
+                            on_click=self.__tout_reinitialiser,
+                            height=40,
+                        ),
+                        Button(
+                            "Terminer",
+                            elevation=1,
+                            style=ButtonStyle(
+                                shape=RoundedRectangleBorder(10),
+                                color="white",
+                                bgcolor="green",
+                            ),
+                            height=40,
+                            on_click=lambda e: self.page.run_thread(
+                                self.__finaliser_entree_medocs
+                            ),
+                        ),
+                    ],
+                ),
             ),
         ]
 
@@ -762,8 +806,23 @@ class EntreeStockView(Column):
             ),
         )
 
+    def __incrise_quantite(self, e):
+        self.quantite.value = (
+            str(int(self.quantite.value) + 1) if self.quantite.value else 1
+        )
+        self.quantite.update()
+        self.__update_prix_total(None)
+
+    def __desincrise_quantite(self, e):
+        if self.quantite.value and int(self.quantite.value) > 0:
+            self.quantite.value = str(int(self.quantite.value) - 1)
+        else:
+            self.quantite.value = "0"
+        self.quantite.update()
+        self.__update_prix_total(None)
+
     def __autocomplete_suggestions(self):
-        for name in list_medocs_names:
+        for name in self.list_all_medocs_db:
             yield AutoCompleteSuggestion(key=name, value=name)
 
     def __select_medoc_from_suggestion(self, e: AutoCompleteSelectEvent):
@@ -801,7 +860,10 @@ class EntreeStockView(Column):
         #     self.list_medocs_entree.controls = e
         #     self.list_medocs_entree.update()
         #     self.__reinitialiser_entree()
-        if self.produit_designation.selected_index and db.is_medoc_exists(
+        if (
+            self.produit_designation.selected_index == 0
+            or self.produit_designation.selected_index
+        ) and db.is_medoc_exists(
             self.produit_designation.suggestions[
                 self.produit_designation.selected_index
             ].value
@@ -819,7 +881,7 @@ class EntreeStockView(Column):
                     prix_total_vente=self.prix_total_vente.value,
                     medoc_delete=self.delete_medoc,
                     gain=self.gain.value,
-                    calcul_totaux=self.__calcul_totaux,
+                    calcul_totaux=self._calcul_totaux,
                 )
             )
             self.list_medocs_entree.update()
@@ -831,14 +893,14 @@ class EntreeStockView(Column):
                 SnackBar(Text("Ce produit n'est pas disponible"), open=True)
             )
             self.page.update()
-        self.__calcul_totaux()
+        self._calcul_totaux()
 
     def delete_medoc(self, e):
         self.list_medocs_entree.controls.remove(e)
         self.list_medocs_entree.update()
-        self.__calcul_totaux()
+        self._calcul_totaux()
 
-    def __calcul_totaux(self):
+    def _calcul_totaux(self):
         total_vente = 0
         total_achat = 0
         for medoc in self.list_medocs_entree.controls:
@@ -884,7 +946,7 @@ class EntreeStockView(Column):
             )
         )
         self.prix_total_vente.update()
-        self.__calcul_totaux()
+        self._calcul_totaux()
         self.gain.value = str(
             round(
                 float(self.prix_total_vente.value) - float(self.prix_total_achat.value),
@@ -926,30 +988,29 @@ class EntreeStockView(Column):
         self.totaux_vente.update()
         self.totaux_gain.update()
         self.__reinitialiser_entree()
-        self.__calcul_totaux()
+        self._calcul_totaux()
         self.list_medocs_entree.update()
 
     def __finaliser_entree_medocs(self):
         if not self.list_medocs_entree.controls:
             return
+        names_medocs = []
+        quantities_medocs = []
         for medoc in (
             self.list_medocs_entree.controls if self.list_medocs_entree.controls else []
         ):
-            medoc_id = db.get_medoc_id_by_name(medoc.nom.value)
-            medoc_quantite = db.get_medoc_quantity_by_id(medoc_id)
+            medoc_quantite = db.get_medoc_quantity_by_name(medoc.nom.value)
             try:
+                names_medocs.append(medoc.nom.value)
+                quantities_medocs.append(
+                    int(float(medoc_quantite or 0) + float(medoc.quantite.value or 0))
+                )
                 db.add_new_medoc_to_accounts_mouvement_in(
                     designation=medoc.forme.value or "",
                     qte=int(medoc.quantite.value),
                     pu=float(medoc.prix_unitaire_vente.value),
-                    produit_id=medoc_id,
+                    produit_id=db.get_medoc_id_by_name(medoc.nom.value),
                     pv=float(medoc.prix_total_vente.value),
-                )
-                db.update_medoc_quantity_by_id(
-                    id=medoc_id,
-                    new_quantity=round(
-                        float(medoc_quantite) + int(medoc.quantite.value)
-                    ),
                 )
             except Exception as e:
                 print(e)
@@ -962,22 +1023,28 @@ class EntreeStockView(Column):
                 )
                 self.page.update()
                 return
-            else:
-                if self.page.overlay:
-                    self.page.overlay.clear()
-                self.page.overlay.append(
-                    SnackBar(Text("L'entrée a été effectuée avec succès !"), open=True)
-                )
-                self.page.update()
+        if self.page.overlay:
+            self.page.overlay.clear()
+        self.page.overlay.append(
+            SnackBar(Text("L'entrée a été effectuée avec succès !"), open=True)
+        )
+        self.page.update()
+
+        self.page.run_thread(
+            db.update_medocs_quantities, names_medocs, quantities_medocs
+        )
         self.__tout_reinitialiser(None)
 
-    def __handler_keyboard_key(self, e: KeyboardEvent):
-        if self.page:
-            match e.key:
-                case "Escape":
-                    self.__reinitialiser_entree()
-                case "Enter":
-                    self.add_medoce_panier(None)
+    def handler_keyboard_key(self, e: KeyboardEvent):
+        try:
+            if self.page:
+                match e.key:
+                    case "Escape":
+                        self.__reinitialiser_entree()
+                    case "Enter":
+                        self.add_medoce_panier(None)
+        except:
+            pass
 
 
 class PrincipalView(Column):
@@ -992,6 +1059,7 @@ class PrincipalView(Column):
         self.page = page
         self.taux_dollar = taux_dollar
         self.spacing = 0
+        self.list_all_medocs_db = db.get_all_medocs_list()
         self.draft_handler = draft_handler
         self.list_medocs_panier = ListView(
             auto_scroll=True,
@@ -1002,16 +1070,16 @@ class PrincipalView(Column):
             suffix=Text("FC"),
             value=0,
             input_filter=InputFilter(regex_string=r"^(\d*\.?\d+|\d+\.?\d*|\d*)$"),
-            on_change=lambda e: self.__calcul_totaux(),
+            on_change=lambda e: self._calcul_totaux(),
         )
         self.charges_connexes = CustomTextField(
             label="Charges connexes",
             suffix=Text("FC"),
             value=0,
             input_filter=InputFilter(regex_string=r"^(\d*\.?\d+|\d+\.?\d*|\d*)$"),
-            on_change=lambda e: self.__calcul_totaux(),
+            on_change=lambda e: self._calcul_totaux(),
         )
-        self.page.on_keyboard_event = self.__handler_keyboard_key
+        self.page.on_keyboard_event = self.handler_keyboard_key
         self.change_devise_medoc = None
         self.nom_client = CustomTextField(
             label="Nom du client",
@@ -1156,68 +1224,69 @@ class PrincipalView(Column):
             self.__input_medoc(),
             Column(
                 expand=True,
-                scroll=ScrollMode.AUTO,
+                scroll=ScrollMode.ALWAYS,
+                auto_scroll=True,
                 controls=[
                     self.list_medocs_panier,
-                    Container(
-                        padding=padding.symmetric(vertical=10, horizontal=20),
-                        content=Column(
+                ],
+            ),
+            Container(
+                padding=padding.symmetric(vertical=10, horizontal=20),
+                content=Column(
+                    controls=[
+                        Row(
+                            spacing=0,
+                            alignment=MainAxisAlignment.END,
+                            controls=[
+                                Container(
+                                    bgcolor="#8B8B8B",
+                                    content=Text(
+                                        "TOTAUX",
+                                        color="white",
+                                        weight=FontWeight.BOLD,
+                                    ),
+                                    padding=padding.all(10),
+                                    border_radius=border_radius.only(
+                                        top_left=10, bottom_left=10
+                                    ),
+                                ),
+                                Container(
+                                    bgcolor="blue",
+                                    content=self.totaux,
+                                    padding=padding.all(10),
+                                    border_radius=border_radius.only(
+                                        top_right=10, bottom_right=10
+                                    ),
+                                ),
+                            ],
+                        ),
+                        Row(
+                            alignment=MainAxisAlignment.SPACE_BETWEEN,
                             controls=[
                                 Row(
-                                    spacing=0,
-                                    alignment=MainAxisAlignment.END,
                                     controls=[
-                                        Container(
-                                            bgcolor="#8B8B8B",
-                                            content=Text(
-                                                "TOTAUX",
-                                                color="white",
-                                                weight=FontWeight.BOLD,
-                                            ),
-                                            padding=padding.all(10),
-                                            border_radius=border_radius.only(
-                                                top_left=10, bottom_left=10
-                                            ),
-                                        ),
-                                        Container(
-                                            bgcolor="blue",
-                                            content=self.totaux,
-                                            padding=padding.all(10),
-                                            border_radius=border_radius.only(
-                                                top_right=10, bottom_right=10
-                                            ),
-                                        ),
-                                    ],
+                                        self.charges_connexes,
+                                        self.reduction_accordee,
+                                    ]
                                 ),
-                                Row(
-                                    alignment=MainAxisAlignment.SPACE_BETWEEN,
-                                    controls=[
-                                        Row(
-                                            controls=[
-                                                self.charges_connexes,
-                                                self.reduction_accordee,
-                                            ]
-                                        ),
-                                        Button(
-                                            "Terminer",
-                                            elevation=1,
-                                            style=ButtonStyle(
-                                                shape=RoundedRectangleBorder(10),
-                                                color="white",
-                                                bgcolor="blue",
-                                            ),
-                                            width=170,
-                                            on_click=lambda e: self.page.run_thread(
-                                                self.finaliser_vente
-                                            ),
-                                            height=40,
-                                        ),
-                                    ],
+                                Button(
+                                    "Terminer",
+                                    elevation=1,
+                                    style=ButtonStyle(
+                                        shape=RoundedRectangleBorder(10),
+                                        color="white",
+                                        bgcolor="blue",
+                                    ),
+                                    width=170,
+                                    on_click=lambda e: self.page.run_thread(
+                                        self.finaliser_vente
+                                    ),
+                                    height=40,
                                 ),
-                            ]
+                            ],
                         ),
-                    ),
-                ],
+                    ]
+                ),
             ),
         ]
 
@@ -1286,7 +1355,7 @@ class PrincipalView(Column):
         self.prix_total.update()
         self.charges_connexes.update()
         self.reduction_accordee.update()
-        self.__calcul_totaux()
+        self._calcul_totaux()
 
     def __add_draft(self, e):
         if self.list_medocs_panier.controls:
@@ -1295,9 +1364,27 @@ class PrincipalView(Column):
                 self.nom_client.value,
                 self.date_field.value,
             )
+            draft_lists = init_load_drafts()
+            draft = []
+
+            for medoc in self.list_medocs_panier.controls:
+                draft.append(
+                    (
+                        medoc.nom.value or "",
+                        medoc.quantite.value or 0,
+                        medoc.forme.value or "",
+                        medoc.prix_unitaire.value or 0,
+                        medoc.prix_total.value or 0,
+                        self.nom_client.value or "",
+                        self.date_field.value or "",
+                        self.devises.value or "FC",
+                    )
+                )
+            draft_lists.append(draft)
+            self.page.run_thread(save_drafts, draft_lists)
             self.__reinitialiser_entree()
             self.__renitialiser_panier(e)
-        self.__calcul_totaux()
+        self._calcul_totaux()
 
     def add_medoce_panier(self, e):
         if isinstance(e, list):
@@ -1305,7 +1392,10 @@ class PrincipalView(Column):
             self.list_medocs_panier.update()
             self.__reinitialiser_entree()
             return
-        if self.produit_designation.selected_index and db.is_medoc_exists(
+        if (
+            self.produit_designation.selected_index == 0
+            or self.produit_designation.selected_index
+        ) and db.is_medoc_exists(
             self.produit_designation.suggestions[
                 self.produit_designation.selected_index
             ].value
@@ -1322,8 +1412,8 @@ class PrincipalView(Column):
                         self.prix_unitaire.value if self.prix_unitaire.value else 0
                     ),
                     prix_total=self.prix_total.value,
-                    medoc_delete=self.__delete_medoc,
-                    calcul_totaux=self.__calcul_totaux,
+                    medoc_delete=self._delete_medoc,
+                    calcul_totaux=self._calcul_totaux,
                     devise_initiale=self.devises.value or "FC",
                 )
             )
@@ -1339,12 +1429,12 @@ class PrincipalView(Column):
             except:
                 pass
             self.page.update()
-        self.__calcul_totaux()
+        self._calcul_totaux()
 
-    def __delete_medoc(self, medoc):
+    def _delete_medoc(self, medoc):
         self.list_medocs_panier.controls.remove(medoc)
         self.list_medocs_panier.update()
-        self.__calcul_totaux()
+        self._calcul_totaux()
 
     def __renitialiser_panier(self, e):
         self.list_medocs_panier.controls = []
@@ -1353,7 +1443,7 @@ class PrincipalView(Column):
         self.list_medocs_panier.update()
         self.nom_client.update()
         self.date_field.update()
-        self.__calcul_totaux()
+        self._calcul_totaux()
         self.__reinitialiser_entree()
         self.list_medocs_panier.update()
 
@@ -1362,6 +1452,7 @@ class PrincipalView(Column):
             str(int(self.quantite.value) + 1) if self.quantite.value else 1
         )
         self.quantite.update()
+        self.__update_prix_total(None)
 
     def __desincrise_quantite(self, e):
         if self.quantite.value and int(self.quantite.value) > 0:
@@ -1369,6 +1460,7 @@ class PrincipalView(Column):
         else:
             self.quantite.value = "0"
         self.quantite.update()
+        self.__update_prix_total(None)
 
     def __input_medoc(self):
         self.quantite = CustomTextField(
@@ -1472,10 +1564,10 @@ class PrincipalView(Column):
         )
 
     def __autocomplete_suggestions(self):
-        for name in list_medocs_names:
+        for name in self.list_all_medocs_db:
             yield AutoCompleteSuggestion(key=name, value=name)
 
-    def __calcul_totaux(self):
+    def _calcul_totaux(self):
         total = 0
         total_sans_charge_reduc = 0
         for medoc in self.list_medocs_panier.controls:
@@ -1506,12 +1598,14 @@ class PrincipalView(Column):
 
     def __select_medoc_from_suggestion(self, e: AutoCompleteSelectEvent):
         medoc = db.get_medocs_by_name(e.selection.key)
+        if not medoc:
+            return
         prix = (
             (float(medoc[0][6]) / float(self.taux_dollar) or 0)
             if self.devises.value == "$"
             else float(medoc[0][6])
         )  # prix de vente
-        self.prix_unitaire.value = str(round(prix, 4))
+        self.prix_unitaire.value = str(round(prix, 3))
         self.forme.value = medoc[0][11] or ""
         self.prix_total.value = str(
             round(float(self.prix_unitaire.value) * float(self.quantite.value), 3)
@@ -1564,56 +1658,31 @@ class PrincipalView(Column):
 
     def load_draft(self, draft_list, nom_client):
         self.list_medocs_panier.controls = draft_list
+        if self.devises.value != draft_list[0].devise.value:
+            self.devises.value = draft_list[0].devise.value
+            self.previous_devise = draft_list[0].devise.value
         self.nom_client.value = nom_client
         self.nom_client.update()
+        self.devises.update()
         self.list_medocs_panier.update()
-        self.__calcul_totaux()
+        self._calcul_totaux()
 
     def finaliser_vente(self):
         if not self.list_medocs_panier.controls:
             return
-        for medoc in (
-            self.list_medocs_panier.controls if self.list_medocs_panier.controls else []
-        ):
-            medoc_id = db.get_medoc_id_by_name(medoc.nom.value)
-            medoc_quantite = db.get_medoc_quantity_by_id(medoc_id)
-            if (
-                float(medoc_quantite) < float(medoc.quantite.value)
-                or medoc_quantite == 0
-            ):
-                if self.page.overlay:
-                    self.page.overlay.clear()
-                self.page.overlay.append(
-                    SnackBar(
-                        Text(
-                            f"La quantité de {medoc.nom.value} disponible est insuffisante\nIl reste {medoc_quantite} en stock",
-                            color="white",
-                        ),
-                        open=True,
-                        duration=6000,
-                        bgcolor="red",
-                    )
-                )
-                self.page.update()
+
         num_facture = db.get_last_facture_id() + 1
+        names_medocs = []
+        quantities_medocs = []
         for medoc in (
             self.list_medocs_panier.controls if self.list_medocs_panier.controls else []
         ):
-            medoc_id = db.get_medoc_id_by_name(medoc.nom.value)
-            medoc_quantite = db.get_medoc_quantity_by_id(medoc_id)
+
+            medoc_quantite = db.get_medoc_quantity_by_name(medoc.nom.value)
             try:
-                db.add_new_medoc_to_accounts_mouvement_out(
-                    designation=medoc.forme.value or "",
-                    qte=int(medoc.quantite.value),
-                    pu=float(medoc.prix_unitaire.value),
-                    produit_id=medoc_id,
-                    pv=float(medoc.prix_total.value),
-                )
-                db.update_medoc_quantity_by_id(
-                    id=medoc_id,
-                    new_quantity=round(
-                        float(medoc_quantite) - int(medoc.quantite.value)
-                    ),
+                names_medocs.append(medoc.nom.value)
+                quantities_medocs.append(
+                    int(float(medoc_quantite or 0) - float(medoc.quantite.value or 0))
                 )
                 db.add_to_accounts_mouvement_facture(
                     quantite=int(medoc.quantite.value) or 0,
@@ -1639,6 +1708,9 @@ class PrincipalView(Column):
                 )
                 self.page.update()
                 return
+        self.page.run_thread(
+            db.update_medocs_quantities, names_medocs, quantities_medocs
+        )
         if self.switch_speaker.value:
             self.page.run_thread(
                 self.__speack_with_args,
@@ -1691,13 +1763,16 @@ class PrincipalView(Column):
         facture_thread.start()
         self.__renitialiser_panier(None)
 
-    def __handler_keyboard_key(self, e: KeyboardEvent):
-        if self.page:
-            match e.key:
-                case "Escape":
-                    self.__reinitialiser_entree(None)
-                case "Enter":
-                    self.add_medoce_panier(None)
+    def handler_keyboard_key(self, e: KeyboardEvent):
+        try:
+            if self.page:
+                match e.key:
+                    case "Escape":
+                        self.__reinitialiser_entree(None)
+                    case "Enter":
+                        self.add_medoce_panier(None)
+        except:
+            pass
 
 
 class Accueil(Container):
@@ -1706,7 +1781,7 @@ class Accueil(Container):
         self.page = page
         self.expand = True
         self.taux_dollar = CupertinoTextField(
-            value="2850",
+            value=str(self.page.client_storage.get("taux") or "2900"),
             width=100,
             keyboard_type=KeyboardType.NUMBER,
             input_filter=InputFilter(regex_string=r"^(\d*\.?\d+|\d+\.?\d*|\d*)$"),
@@ -1716,13 +1791,19 @@ class Accueil(Container):
             draft_handler=self.__add_draft,
             taux_dollar=self.taux_dollar.value,
         )
+        self.__produits_view = ProduitsView(
+            self.page,
+            self.__add_new_product,
+            self.__change_view_to_entree_stock,
+        )
+        self.__entree_stock_view = EntreeStockView(self.page)
         self.__clients_view = Column()
         self.current_view = Container(
             content=self.__principal_view, expand=True, expand_loose=True
         )
         self.list_medocs_draft = ListView(
             auto_scroll=True,
-            controls=[],
+            controls=self.init_drafts(),
         )
         self.file_picker = FilePicker(on_result=self.__pick_file_db)
         self.page.overlay.append(self.file_picker)
@@ -1742,6 +1823,8 @@ class Accueil(Container):
                 self.current_view,
             ],
         )
+        # self.__principal_view.init_drafts()
+        self.init_drafts()
 
     def _menu(self):
         return Column(
@@ -1877,33 +1960,48 @@ class Accueil(Container):
         )
 
     def __change_view_to_entree_stock(self, e):
-        self.current_view.content = EntreeStockView(self.page)
-        self.current_view.update()
+        try:
+            self.current_view.content = self.__entree_stock_view
+            self.page.on_keyboard_event = self.__entree_stock_view.handler_keyboard_key
+            self.current_view.update()
+        except:
+            pass
 
     def __change_view(self, e: ControlEvent):
-        match e.control.text:
-            case "Accueil":
-                self.current_view.content = self.__principal_view
-            case "Produits":
-                self.current_view.content = ProduitsView(
-                    self.page,
-                    self.__add_new_product,
-                    self.__change_view_to_entree_stock,
-                )
-            case "Ventes":
-                self.current_view.content = VenteView(
-                    self.page,
-                    self.__add_new_product,
-                    self.__change_view_to_entree_stock,
-                )
-            case "Clients":
-                self.current_view.content = self.__clients_view
-            case "Tableau de bord":
-                self.current_view.content = TableauBordView(self.page)
-        self.current_view.update()
+        try:
+            match e.control.text:
+                case "Accueil":
+                    self.current_view.content = self.__principal_view
+                    self.page.on_keyboard_event = (
+                        self.__principal_view.handler_keyboard_key
+                    )
+                    self.__principal_view.list_all_medocs_db = db.get_all_medocs_list()
+                case "Produits":
+                    self.current_view.content = self.__produits_view
+                    self.__produits_view.all_medocs_for_preview = (
+                        db.get_medocs_for_list_preview()
+                    )
+                    self.page.on_keyboard_event = None
+                case "Ventes":
+                    self.current_view.content = VenteView(
+                        self.page,
+                        self.__add_new_product,
+                        self.__change_view_to_entree_stock,
+                    )
+                    self.page.on_keyboard_event = None
+                case "Clients":
+                    self.current_view.content = self.__clients_view
+                    self.page.on_keyboard_event = None
+                case "Tableau de bord":
+                    self.current_view.content = TableauBordView(self.page)
+                    self.page.on_keyboard_event = None
+            self.current_view.update()
+        except:
+            pass
 
     def __change_taux_dollar(self, e):
         if self.taux_dollar.value:
+            self.page.client_storage.set("taux", float(self.taux_dollar.value))
             self.__principal_view.handler_change_taux(float(self.taux_dollar.value))
             if self.page.overlay:
                 self.page.overlay.clear()
@@ -1924,6 +2022,7 @@ class Accueil(Container):
         self.date_field.update()
 
     def __add_new_product(self, e):
+        self.page.on_keyboard_event = None
         self.nom = CustomTextField(
             label="Nom du produit", height=60, on_blur=self.__verifier_produit
         )
@@ -1958,7 +2057,7 @@ class Accueil(Container):
             ),
         )
         self.db_file_picked = CustomTextField(
-            value=" ", read_only=True, height=40, multiline=True
+            value="", read_only=True, height=40, multiline=True
         )
         self.button_ajouter = Button(
             "Ajouter",
@@ -1969,7 +2068,7 @@ class Accueil(Container):
                 bgcolor="blue",
             ),
             width=200,
-            on_click=lambda e: self.page.run_thread(self.__add_medoc_to_db),
+            on_click=self.__add_medoc_to_db,
             height=40,
         )
         self.dialog = AlertDialog(
@@ -2041,7 +2140,7 @@ class Accueil(Container):
             CustomDraftButton(
                 self.page,
                 list_draft,
-                nom_client if nom_client else "Inconnu",
+                nom_client if nom_client else "",
                 date,
                 self.__delete_draft,
                 self.__load_draft,
@@ -2064,8 +2163,8 @@ class Accueil(Container):
                 self.button_ajouter.update()
                 self.nom.update()
 
-    def __add_medoc_to_db(self):
-        if self.db_file_picked.value != " ":
+    def __add_medoc_to_db(self, e):
+        if self.db_file_picked.value:
             try:
                 db.import_csv_to_db(self.path_csv)
                 if self.page.overlay:
@@ -2084,6 +2183,8 @@ class Accueil(Container):
                 )
                 self.page.update()
             finally:
+                self.page.close(self.dialog)
+                self.page.update()
                 return
         elif (
             self.nom.value
@@ -2098,8 +2199,7 @@ class Accueil(Container):
                 # "date_dexpiration",
                 # "prix_achat",
                 # "prix_vente",
-                self.page.run_thread(
-                    db.add_medoc,
+                db.add_medoc(
                     (
                         self.nom.value.upper(),
                         self.forme.value.upper(),
@@ -2109,7 +2209,7 @@ class Accueil(Container):
                         ).date(),
                         float(self.prix_achat.value),
                         float(self.prix_vente.value),
-                    ),
+                    )
                 )
 
             except:
@@ -2124,9 +2224,9 @@ class Accueil(Container):
                 self.page.overlay.append(
                     SnackBar(Text("Le produit a été ajouté avec succès"), open=True)
                 )
-                self.__renitialiser_produit(None)
-            finally:
-                self.page.update()
+
+        self.page.close(self.dialog)
+        self.page.update()
 
     def __renitialiser_produit(self, e):
         self.nom.value = ""
@@ -2145,10 +2245,71 @@ class Accueil(Container):
     def __delete_draft(self, e):
         self.list_medocs_draft.controls.remove(e)
         self.list_medocs_draft.update()
+        nom_client = "" if e.nom_client == "" else e.nom_client
+        date = e.date
+        list_medocs_drafts = []
+        for medoc in e.list_medicaments:
+            list_medocs_drafts.append(
+                (
+                    medoc.nom.value,
+                    medoc.quantite.value,
+                    medoc.forme.value,
+                    medoc.prix_unitaire.value,
+                    medoc.prix_total.value,
+                    nom_client,
+                    date,
+                    medoc.devise.value,
+                )
+            )
+        drafts = init_load_drafts()
+        try:
+            drafts.remove(list_medocs_drafts)
+            save_drafts(drafts)
+        except Exception as e:
+            print(e)
 
     def __load_draft(self, e):
+        if self.current_view.content != self.__principal_view:
+            return
         self.__principal_view.load_draft(e.list_medicaments, e.nom_client)
         self.__delete_draft(e)
+
+    def init_drafts(self):
+        drafts = init_load_drafts()
+        all_drafts = []
+        if drafts:
+            for draft_l in drafts:
+                list_drafts = []
+                client_name = " "
+                date = " "
+                for draft in draft_l:
+                    client_name = draft[5]
+                    date = draft[6]
+                    list_drafts.append(
+                        Medicament(
+                            nom=draft[0],
+                            quantite=draft[1],
+                            forme=draft[2],
+                            prix_unitaire=draft[3],
+                            prix_total=draft[4],
+                            medoc_delete=self.__principal_view._delete_medoc,
+                            calcul_totaux=self.__principal_view._calcul_totaux,
+                            devise_initiale=draft[7],
+                        )
+                    )
+                all_drafts.append(
+                    CustomDraftButton(
+                        self.page,
+                        list_drafts,
+                        client_name if client_name else "",
+                        date,
+                        self.__delete_draft,
+                        self.__load_draft,
+                    )
+                )
+        return all_drafts
+
+        # self._calcul_totaux()
 
 
 class VenteView(Column):
@@ -2220,6 +2381,7 @@ class VenteView(Column):
                     ),
                     numeric=True,
                 ),
+                DataColumn(label=Text("Devise", weight=FontWeight.BOLD, color="white")),
                 DataColumn(
                     label=Text("Actions", weight=FontWeight.BOLD, color="white")
                 ),
@@ -2358,6 +2520,7 @@ class VenteView(Column):
                     DataCell(Text(invoice[7])),
                     DataCell(Text(invoice[8])),
                     DataCell(Text(invoice[5])),
+                    DataCell(Text(invoice[9])),
                     DataCell(
                         IconButton(
                             Icons.PRINT,
@@ -2382,12 +2545,14 @@ class VenteView(Column):
         for invoice_data in unique_invoices.values():
             invoice = invoice_data["invoice"]
             total = invoice_data["total"]
+            total = round(total, 3)
             yield DataRow(
                 cells=[
                     DataCell(Text(invoice[6])),
                     DataCell(Text(invoice[7])),
                     DataCell(Text(invoice[8])),
                     DataCell(Text(str(total))),
+                    DataCell(Text(invoice[9])),
                     DataCell(
                         IconButton(
                             Icons.PRINT,
@@ -2430,6 +2595,7 @@ class VenteView(Column):
         montant_total = 0
         for medoc in list_medocs:
             montant_total += float(medoc[5])
+        montant_total = round(montant_total, 3)
         liste_medocs_facture = [
             ["N°", "QUANTITE", "FORME", "PRODUIT", "PRIX UNITAIRE", "PRIX TOTAL"]
         ]
@@ -2445,6 +2611,7 @@ class VenteView(Column):
                 ]
             )
         totaux = montant_total - list_medocs[0][10] + list_medocs[0][11]
+        totaux = round(totaux, 3)
         facture_thread = Thread(
             target=generer_facture,
             kwargs=dict(
@@ -2549,7 +2716,7 @@ class TableauBordView(Column):
         ]
 
     def __medocs_enreigistrer(self):
-        return len(list_medocs_names)
+        return len(db.get_all_medocs_list())
 
     def __total_vendu(self):
         total_vendu = 0

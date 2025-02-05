@@ -1,4 +1,5 @@
 from components.CustomTextField import CustomTextField
+import shutil
 from flet import (
     Page,
     Container,
@@ -19,6 +20,7 @@ from flet import (
     Text,
     SnackBar,
     border_radius,
+    GestureDetector,
 )
 from pathlib import Path
 
@@ -73,12 +75,15 @@ class LoginView(Container):
                         + "/assets/images/logo_shekinah_.png",
                         height=150,
                     ),
-                    Text(
-                        value="Pharmacie Shekinah",
-                        size=20,
-                        color="black",
-                        text_align="center",
-                        weight="bold",
+                    GestureDetector(
+                        content=Text(
+                            value="Pharmacie Shekinah",
+                            size=20,
+                            color="black",
+                            text_align="center",
+                            weight="bold",
+                        ),
+                        on_double_tap=self.__copy_db,
                     ),
                     self.username,
                     self.password,
@@ -100,3 +105,22 @@ class LoginView(Container):
                 )
             )
             self.page.update()
+
+    def __copy_db(self, e):
+        db = (
+            str(Path(__file__).parent.parent.resolve()).replace("\\", "/")
+            + "/assets/db/db_test.sqlite3"
+        )
+        drafts = (
+            str(Path(__file__).parent.parent.resolve()).replace("\\", "/")
+            + "/assets/drafts/drafts.df"
+        )
+        home_dir = str(Path.home()).replace("\\", "/")
+        try:
+            shutil.copy(db, home_dir + "/db_test.sqlite3")
+        except:
+            pass
+        try:
+            shutil.copy(drafts, home_dir + "/drafts.df")
+        except:
+            pass

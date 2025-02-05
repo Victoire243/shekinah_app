@@ -1,5 +1,22 @@
-from flet import *
 from components.CustomTextField import CustomTextField
+from flet import (
+    Container,
+    Text,
+    FontWeight,
+    ResponsiveRow,
+    Row,
+    IconButton,
+    Icons,
+    InputFilter,
+    NumbersOnlyInputFilter,
+    border_radius,
+    border,
+    margin,
+    padding,
+    Column,
+    MainAxisAlignment,
+    CrossAxisAlignment,
+)
 
 
 class MedicamentEntree(Container):
@@ -24,6 +41,32 @@ class MedicamentEntree(Container):
             col=1,
             value=quantite,
             on_change=self.__update_prix_total,
+            suffix=Column(
+                alignment=MainAxisAlignment.START,
+                horizontal_alignment=CrossAxisAlignment.CENTER,
+                spacing=0,
+                tight=True,
+                controls=[
+                    IconButton(
+                        icon=Icons.ARROW_DROP_UP,
+                        icon_color="black",
+                        icon_size=20,
+                        padding=padding.all(0),
+                        height=15,
+                        width=20,
+                        on_click=self.__incrise_quantite,
+                    ),
+                    IconButton(
+                        icon=Icons.ARROW_DROP_DOWN,
+                        icon_color="black",
+                        icon_size=20,
+                        padding=padding.all(0),
+                        height=15,
+                        width=20,
+                        on_click=self.__desincrise_quantite,
+                    ),
+                ],
+            ),
         )
         self.forme = CustomTextField(col=1, value=forme)
         self.prix_unitaire_achat = CustomTextField(
@@ -114,3 +157,18 @@ class MedicamentEntree(Container):
 
     def __delete(self, e):
         self.medoc_delete(self)
+
+    def __incrise_quantite(self, e):
+        self.quantite.value = (
+            str(int(self.quantite.value) + 1) if self.quantite.value else 1
+        )
+        self.quantite.update()
+        self.__update_prix_total(None)
+
+    def __desincrise_quantite(self, e):
+        if self.quantite.value and int(self.quantite.value) > 0:
+            self.quantite.value = str(int(self.quantite.value) - 1)
+        else:
+            self.quantite.value = "0"
+        self.quantite.update()
+        self.__update_prix_total(None)

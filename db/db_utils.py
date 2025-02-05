@@ -66,16 +66,24 @@ class DBUtils:
             return result if result else []
 
     def get_medocs_by_name(self, name: str):
-        return self.second_cursor.execute(
-            f"SELECT * FROM accounts_produit WHERE nom = '{name.upper()}'"
-        ).fetchall()
+        try:
+            resultat = self.second_cursor.execute(
+                f"SELECT * FROM accounts_produit WHERE nom = '{name.upper()}'"
+            ).fetchall()
+        except:
+            return []
+        else:
+            return resultat if resultat else []
 
     def is_medoc_exists(self, name: str):
-        return bool(
-            self.second_cursor.execute(
-                f"SELECT * FROM accounts_produit WHERE nom = '{name.upper().strip()}'"
-            ).fetchall()
-        )
+        try:
+            return bool(
+                self.second_cursor.execute(
+                    f"SELECT * FROM accounts_produit WHERE nom = '{name.upper().strip()}'"
+                ).fetchall()
+            )
+        except:
+            return False
 
     def insert_fields(self, table_name, fields: tuple, values: tuple):
         all_fields = self.get_table_fields_as_list(table_name)
@@ -144,30 +152,42 @@ class DBUtils:
         ).fetchone()[0]
 
     def update_medoc_quantity_by_id(self, id: int | str, new_quantity: int | str):
-        self.cursor.execute(
-            f"UPDATE accounts_mouvement SET qte = {new_quantity} WHERE produit_id = {id}"
-        )
-        self.conn.commit()
+        try:
+            self.cursor.execute(
+                f"UPDATE accounts_mouvement SET qte = {new_quantity} WHERE produit_id = {id}"
+            )
+            self.conn.commit()
+        except:
+            pass
 
     def update_medoc_designation_by_id(self, id: int | str, new_description: str):
-        self.cursor.execute(
-            f"UPDATE accounts_mouvement SET designation = '{new_description}' WHERE produit_id = {id}"
-        )
-        self.conn.commit()
+        try:
+            self.cursor.execute(
+                f"UPDATE accounts_mouvement SET designation = '{new_description}' WHERE produit_id = {id}"
+            )
+            self.conn.commit()
+        except:
+            pass
 
     def update_medoc(self, name, fields, values):
-        fields_str = ", ".join(
-            [f"{field} = '{value}'" for field, value in zip(fields, values)]
-        )
-        self.cursor.execute(
-            f"UPDATE accounts_produit SET {fields_str} WHERE nom = '{name}'"
-        )
-        self.conn.commit()
+        try:
+            fields_str = ", ".join(
+                [f"{field} = '{value}'" for field, value in zip(fields, values)]
+            )
+            self.cursor.execute(
+                f"UPDATE accounts_produit SET {fields_str} WHERE nom = '{name}'"
+            )
+            self.conn.commit()
+        except:
+            pass
 
     def get_medoc(self, name):
-        return self.second_cursor.execute(
-            f"SELECT * FROM accounts_produit WHERE nom = '{name}'"
-        ).fetchone()
+        try:
+            return self.second_cursor.execute(
+                f"SELECT * FROM accounts_produit WHERE nom = '{name}'"
+            ).fetchone()
+        except:
+            return []
 
     def get_medoc_fields(self):
         return [
@@ -218,29 +238,38 @@ class DBUtils:
         ]
 
     def get_table_fields_as_list(self, table_name="accounts_produit"):
-        return [
-            description[1]
-            for description in self.second_cursor.execute(
-                f"PRAGMA table_info({table_name})"
-            ).fetchall()
-        ]
+        try:
+            return [
+                description[1]
+                for description in self.second_cursor.execute(
+                    f"PRAGMA table_info({table_name})"
+                ).fetchall()
+            ]
+        except:
+            return []
 
     def get_table_fields_types_as_dict(self, table_name):
-        return {
-            description[1]: description[2]
-            for description in self.second_cursor.execute(
-                f"PRAGMA table_info({table_name})"
-            ).fetchall()
-        }
+        try:
+            return {
+                description[1]: description[2]
+                for description in self.second_cursor.execute(
+                    f"PRAGMA table_info({table_name})"
+                ).fetchall()
+            }
+        except:
+            return {}
 
     def update_medoc_fields(self, name, fields, values):
-        fields_str = ", ".join(
-            [f"{field} = '{value}'" for field, value in zip(fields, values)]
-        )
-        self.cursor.execute(
-            f"UPDATE accounts_produit SET {fields_str} WHERE nom = '{name}'"
-        )
-        self.conn.commit()
+        try:
+            fields_str = ", ".join(
+                [f"{field} = '{value}'" for field, value in zip(fields, values)]
+            )
+            self.cursor.execute(
+                f"UPDATE accounts_produit SET {fields_str} WHERE nom = '{name}'"
+            )
+            self.conn.commit()
+        except:
+            pass
 
     def add_new_medoc_to_accounts_mouvement(self, medoc):
         medoc = (
@@ -352,12 +381,20 @@ class DBUtils:
         )
 
     def get_all_mouvement_facture(self):
-        return self.select("accounts_mouvement_facture", ["*"])
+        try:
+            resultat = self.select("accounts_mouvement_facture", ["*"])
+        except:
+            return []
+        else:
+            return resultat if resultat else []
 
     def get_all_mouvement_facture_by_id_facture(self, id_facture):
-        resultat = self.second_cursor.execute(
-            f"SELECT * FROM accounts_mouvement_facture WHERE id_facture = {id_facture if id_facture else 0}"
-        ).fetchall()
+        try:
+            resultat = self.second_cursor.execute(
+                f"SELECT * FROM accounts_mouvement_facture WHERE id_facture = {id_facture if id_facture else 0}"
+            ).fetchall()
+        except:
+            return []
         return resultat if resultat else []
 
     def get_last_facture_id(self):
@@ -401,10 +438,29 @@ class DBUtils:
         for table in tables:
             self.delete_all_table_data(table[0])
 
+    def update_medocs_quantities(self, names: tuple | list, quantities: tuple | list):
+        try:
+            for name, quantity in zip(names, quantities):
+                self.update_medoc_quantity_by_id(
+                    self.get_medoc_id_by_name(name), quantity
+                )
+        except:
+            pass
+
+    def get_medoc_quantity_by_name(self, name: str):
+        try:
+            resultat = self.second_cursor.execute(
+                f"SELECT qte FROM accounts_mouvement WHERE produit_id = (SELECT id FROM accounts_produit WHERE nom = '{name.upper().strip()}')"
+            ).fetchone()[0]
+        except:
+            return 0
+        else:
+            return resultat or 0
+
 
 if __name__ == "__main__":
     db = DBUtils("assets/db/db_test.sqlite3")
     # db.delete_all_table_data("accounts_mouvement_facture")
-    # db.import_csv_to_db("assets/db/produits.csv")
+    db.import_csv_to_db("assets/db/produits.csv")
     # db.delete_all_data()
     db.close()
