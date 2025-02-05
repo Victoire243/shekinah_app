@@ -103,7 +103,7 @@ def generer_facture(
     row_height = 20
 
     # Configuration du tableau
-    col_widths = [30, 60, 80, 160, 80, 80]
+    col_widths = [30, 40, 60, 200, 80, 80]
     table_style = TableStyle(
         [
             ("BACKGROUND", (0, 0), (-1, 0), colors.grey),  # En-tête

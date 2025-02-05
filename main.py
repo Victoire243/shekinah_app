@@ -582,7 +582,6 @@ class EntreeStockView(Column):
         self.page = page
         self.spacing = 0
         self.list_all_medocs_db = db.get_all_medocs_list()
-        self.page.on_keyboard_event = self.handler_keyboard_key
         self.list_medocs_entree = ListView(
             auto_scroll=True,
             controls=[],
@@ -887,12 +886,7 @@ class EntreeStockView(Column):
             self.list_medocs_entree.update()
             self.__reinitialiser_entree()
         else:
-            if self.page.overlay:
-                self.page.overlay.clear()
-            self.page.overlay.append(
-                SnackBar(Text("Ce produit n'est pas disponible"), open=True)
-            )
-            self.page.update()
+            return
         self._calcul_totaux()
 
     def delete_medoc(self, e):
@@ -1420,15 +1414,7 @@ class PrincipalView(Column):
             self.list_medocs_panier.update()
             self.__reinitialiser_entree()
         else:
-            try:
-                if self.page.overlay:
-                    self.page.overlay.clear()
-                self.page.overlay.append(
-                    SnackBar(Text("Ce produit n'est pas disponible"), open=True)
-                )
-            except:
-                pass
-            self.page.update()
+            return
         self._calcul_totaux()
 
     def _delete_medoc(self, medoc):
@@ -1728,7 +1714,7 @@ class PrincipalView(Column):
 
     def imprimer_facture(self, num_facture):
         liste_medocs_facture = [
-            ["N°", "QUANTITE", "FORME", "PRODUIT", "PRIX UNITAIRE", "PRIX TOTAL"]
+            ["N°", "QTE", "FORME", "PRODUIT", "PRIX UNITAIRE", "PRIX TOTAL"]
         ]
         for index, medoc in enumerate(self.list_medocs_panier.controls, start=1):
             liste_medocs_facture.append(
@@ -2272,7 +2258,7 @@ class Accueil(Container):
         if self.current_view.content != self.__principal_view:
             return
         self.__principal_view.load_draft(e.list_medicaments, e.nom_client)
-        self.__delete_draft(e)
+        # self.__delete_draft(e)
 
     def init_drafts(self):
         drafts = init_load_drafts()
@@ -2597,7 +2583,7 @@ class VenteView(Column):
             montant_total += float(medoc[5])
         montant_total = round(montant_total, 3)
         liste_medocs_facture = [
-            ["N°", "QUANTITE", "FORME", "PRODUIT", "PRIX UNITAIRE", "PRIX TOTAL"]
+            ["N°", "QTE", "FORME", "PRODUIT", "PRIX UNITAIRE", "PRIX TOTAL"]
         ]
         for index, medoc in enumerate(list_medocs, start=1):
             liste_medocs_facture.append(
