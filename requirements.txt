@@ -1,4 +1,4 @@
-flet==0.25.0
+flet==0.26.0
 pyttsx3
 pillow
 chardet
