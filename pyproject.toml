@@ -5,7 +5,7 @@ description = ""
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
-    "flet==0.26.0",
+    "flet==0.25.0",
     "pyttsx3",
     "pillow",
     "chardet",
@@ -30,5 +30,5 @@ copyright = "Copyright (C) 2024 by Flet"
 # [tool.flet.app]
 # path = "src"
 
-# [tool.flet.flutter.pubspec.dependency_overrides]
-# file_picker = "8.1.4"
+[tool.flet.flutter.pubspec.dependency_overrides]
+file_picker = "8.1.4"
