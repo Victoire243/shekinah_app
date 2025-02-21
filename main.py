@@ -75,6 +75,10 @@ from flet import (
     Switch,
 )
 
+# import logging
+
+# logging.basicConfig(level=logging.DEBUG)
+
 
 current_directory = (
     str(Path(__file__).parent.resolve()).replace("\\", "/")
@@ -95,14 +99,18 @@ def init_load_drafts():
     try:
         with open(drafts_directory, "rb") as f:
             drafts = pickle.load(f)
-    except:
+    except (FileNotFoundError, pickle.UnpicklingError) as e:
+        print(f"Error loading drafts: {e}")
         drafts = []
     return drafts
 
 
 def save_drafts(drafts):
-    with open(drafts_directory, "wb") as f:
-        pickle.dump(drafts, f)
+    try:
+        with open(drafts_directory, "wb") as f:
+            pickle.dump(drafts, f)
+    except (FileNotFoundError, pickle.PicklingError) as e:
+        print(f"Error saving drafts: {e}")
 
 
 class ProduitsView(Column):
@@ -291,22 +299,36 @@ class ProduitsView(Column):
 
     def __restore_search_bar(self):
         self.search_bar.value = ""
-        self.search_bar.update()
+        try:
+            self.search_bar.update()
+        except Exception as e:
+            print(f"Error updating search bar: {e}")
         self.data_table.rows = list(self.__products())
-        self.data_table.update()
+        try:
+            self.data_table.update()
+        except Exception as e:
+            print(f"Error updating data table: {e}")
 
     def __search_medoc(self):
-        products_founds = db.get_medocs_for_list_preview_by_containing_name(
-            self.search_bar.value
-        )
-        if products_founds:
-            self.data_table.rows = list(self.__products_searched(products_founds))
-            self.data_table.update()
-        else:
-            if self.page.overlay:
-                self.page.overlay.clear()
-            self.page.overlay.append(SnackBar(Text("Aucun produit trouvé"), open=True))
-        self.page.update()
+        try:
+            products_founds = db.get_medocs_for_list_preview_by_containing_name(
+                self.search_bar.value
+            )
+            if products_founds:
+                self.data_table.rows = list(self.__products_searched(products_founds))
+                try:
+                    self.data_table.update()
+                except Exception as e:
+                    print(f"Error updating data table: {e}")
+            else:
+                if self.page.overlay:
+                    self.page.overlay.clear()
+                self.page.overlay.append(
+                    SnackBar(Text("Aucun produit trouvé"), open=True)
+                )
+            self.page.update()
+        except Exception as e:
+            print(f"Error searching medoc: {e}")
 
     def __products_searched(self, products_founds):
         for medoc in products_founds:
@@ -383,8 +405,14 @@ class ProduitsView(Column):
         self.controls[-1].controls[2].disabled = (
             self.current_page >= self.total_pages - 1
         )
-        self.data_table.update()
-        self.page.update()
+        try:
+            self.data_table.update()
+        except Exception as e:
+            print(f"Error updating data table: {e}")
+        try:
+            self.page.update()
+        except Exception as e:
+            print(f"Error updating page: {e}")
 
     def __handler_edit_button(self, e: ControlEvent):
         m = []
@@ -487,12 +515,18 @@ class ProduitsView(Column):
         )
 
         self.page.open(self.dialog)
-        self.page.update()
+        try:
+            self.page.update()
+        except Exception as e:
+            print(f"Error updating page: {e}")
 
     def __select_date(self, e: ControlEvent):
         self.current_date = e.control.value
         self.date_field.value = str(e.control.value.strftime("%d-%m-%Y"))
-        self.date_field.update()
+        try:
+            self.date_field.update()
+        except Exception as e:
+            print(f"Error updating date field: {e}")
 
     def __update_medoc_accounts_produit_db(self):
         self.page.run_thread(self.__update_medoc_accounts_produit_db_async)
@@ -526,7 +560,8 @@ class ProduitsView(Column):
                 db.update_medoc_quantity_by_id(medoc_id, int(self.stock_quantite.value))
                 db.update_medoc_designation_by_id(medoc_id, self.forme.value)
                 self.all_medocs_for_preview = db.get_medocs_for_list_preview()
-            except:
+            except Exception as e:
+                print(f"Error updating medoc: {e}")
                 if self.page.overlay:
                     self.page.overlay.clear()
                 self.page.overlay.append(
@@ -542,9 +577,15 @@ class ProduitsView(Column):
                     SnackBar(Text("Le produit a été modifié avec succès"), open=True)
                 )
                 self.data_table.rows = list(self.__products())
-                self.data_table.update()
+                try:
+                    self.data_table.update()
+                except Exception as e:
+                    print(f"Error updating data table: {e}")
             finally:
-                self.page.update()
+                try:
+                    self.page.update()
+                except Exception as e:
+                    print(f"Error updating page: {e}")
 
     def __delete_medoc_accounts_produit_db(self):
         self.page.run_thread(self.__delete_medoc_accounts_produit_db_async)
@@ -554,7 +595,8 @@ class ProduitsView(Column):
             try:
                 db.delete_medoc(self.nom.value)
                 self.all_medocs_for_preview = db.get_medocs_for_list_preview()
-            except:
+            except Exception as e:
+                print(f"Error deleting medoc: {e}")
                 if self.page.overlay:
                     self.page.overlay.clear()
                 self.page.overlay.append(
@@ -571,9 +613,15 @@ class ProduitsView(Column):
                     SnackBar(Text("Le produit a été supprimé avec succès"), open=True)
                 )
                 self.data_table.rows = list(self.__products())
-                self.data_table.update()
+                try:
+                    self.data_table.update()
+                except Exception as e:
+                    print(f"Error updating data table: {e}")
             finally:
-                self.page.update()
+                try:
+                    self.page.update()
+                except Exception as e:
+                    print(f"Error updating page: {e}")
 
 
 class EntreeStockView(Column):
@@ -809,7 +857,10 @@ class EntreeStockView(Column):
         self.quantite.value = (
             str(int(self.quantite.value) + 1) if self.quantite.value else 1
         )
-        self.quantite.update()
+        try:
+            self.quantite.update()
+        except Exception as e:
+            print(f"Error updating quantite: {e}")
         self.__update_prix_total(None)
 
     def __desincrise_quantite(self, e):
@@ -817,7 +868,10 @@ class EntreeStockView(Column):
             self.quantite.value = str(int(self.quantite.value) - 1)
         else:
             self.quantite.value = "0"
-        self.quantite.update()
+        try:
+            self.quantite.update()
+        except Exception as e:
+            print(f"Error updating quantite: {e}")
         self.__update_prix_total(None)
 
     def __autocomplete_suggestions(self):
@@ -847,11 +901,14 @@ class EntreeStockView(Column):
             )
             or "0"
         )
-        self.prix_unitaire_achat.update()
-        self.prix_total_achat.update()
-        self.prix_unitaire_vente.update()
-        self.prix_total_vente.update()
-        self.page.update()
+        try:
+            self.prix_unitaire_achat.update()
+            self.prix_total_achat.update()
+            self.prix_unitaire_vente.update()
+            self.prix_total_vente.update()
+            self.page.update()
+        except Exception as e:
+            print(f"Error updating fields: {e}")
         self.__update_prix_total(None)
 
     def add_medoce_panier(self, e):
@@ -867,31 +924,40 @@ class EntreeStockView(Column):
                 self.produit_designation.selected_index
             ].value
         ):
-            self.list_medocs_entree.controls.append(
-                MedicamentEntree(
-                    nom=self.produit_designation.suggestions[
-                        self.produit_designation.selected_index
-                    ].value,
-                    quantite=self.quantite.value,
-                    forme=self.forme.value,
-                    prix_unitaire_achat=self.prix_unitaire_achat.value,
-                    prix_unitaire_vente=self.prix_unitaire_vente.value,
-                    prix_total_achat=self.prix_total_achat.value,
-                    prix_total_vente=self.prix_total_vente.value,
-                    medoc_delete=self.delete_medoc,
-                    gain=self.gain.value,
-                    calcul_totaux=self._calcul_totaux,
+            try:
+                self.list_medocs_entree.controls.append(
+                    MedicamentEntree(
+                        nom=self.produit_designation.suggestions[
+                            self.produit_designation.selected_index
+                        ].value,
+                        quantite=self.quantite.value,
+                        forme=self.forme.value,
+                        prix_unitaire_achat=self.prix_unitaire_achat.value,
+                        prix_unitaire_vente=self.prix_unitaire_vente.value,
+                        prix_total_achat=self.prix_total_achat.value,
+                        prix_total_vente=self.prix_total_vente.value,
+                        medoc_delete=self.delete_medoc,
+                        gain=self.gain.value,
+                        calcul_totaux=self._calcul_totaux,
+                    )
                 )
-            )
-            self.list_medocs_entree.update()
-            self.__reinitialiser_entree()
+                try:
+                    self.list_medocs_entree.update()
+                except Exception as e:
+                    print(f"Error updating list_medocs_entree: {e}")
+                self.__reinitialiser_entree()
+            except Exception as e:
+                print(f"Error while adding medoc in panier entree stock : {e}")
         else:
             return
         self._calcul_totaux()
 
     def delete_medoc(self, e):
         self.list_medocs_entree.controls.remove(e)
-        self.list_medocs_entree.update()
+        try:
+            self.list_medocs_entree.update()
+        except Exception as e:
+            print(f"Error updating list_medocs_entree: {e}")
         self._calcul_totaux()
 
     def _calcul_totaux(self):
@@ -911,9 +977,12 @@ class EntreeStockView(Column):
         self.totaux_achat.value = str(round(total_achat, 3))
         self.totaux_vente.value = str(round(total_vente, 3))
         self.totaux_gain.value = str(round(total_vente - total_achat, 3))
-        self.totaux_gain.update()
-        self.totaux_achat.update()
-        self.totaux_vente.update()
+        try:
+            self.totaux_gain.update()
+            self.totaux_achat.update()
+            self.totaux_vente.update()
+        except Exception as e:
+            print(f"Error updating totals: {e}")
 
     def __update_prix_total(self, e):
         self.prix_total_achat.value = str(
@@ -947,7 +1016,10 @@ class EntreeStockView(Column):
                 3,
             )
         )
-        self.gain.update()
+        try:
+            self.gain.update()
+        except Exception as e:
+            print(f"Error updating price fields: {e}")
 
     def __reinitialiser_entree(self):
         self.quantite.value = "1"
@@ -963,14 +1035,17 @@ class EntreeStockView(Column):
         )
         self.container_designation.content = self.produit_designation
 
-        self.quantite.update()
-        self.forme.update()
-        self.prix_unitaire_achat.update()
-        self.prix_unitaire_vente.update()
-        self.prix_total_vente.update()
-        self.prix_total_achat.update()
-        self.container_designation.update()
-        self.gain.update()
+        try:
+            self.quantite.update()
+            self.forme.update()
+            self.prix_unitaire_achat.update()
+            self.prix_unitaire_vente.update()
+            self.prix_total_vente.update()
+            self.prix_total_achat.update()
+            self.container_designation.update()
+            self.gain.update()
+        except Exception as e:
+            print(f"Error updating fields: {e}")
 
     def __tout_reinitialiser(self, e):
         self.list_medocs_entree.controls = []
@@ -978,12 +1053,18 @@ class EntreeStockView(Column):
         self.totaux_achat.value = ""
         self.totaux_vente.value = ""
         self.totaux_gain.value = ""
-        self.totaux_achat.update()
-        self.totaux_vente.update()
-        self.totaux_gain.update()
+        try:
+            self.totaux_achat.update()
+            self.totaux_vente.update()
+            self.totaux_gain.update()
+        except Exception as e:
+            print(f"Error updating totals: {e}")
         self.__reinitialiser_entree()
         self._calcul_totaux()
-        self.list_medocs_entree.update()
+        try:
+            self.list_medocs_entree.update()
+        except Exception as e:
+            print(f"Error updating list_medocs_entree: {e}")
 
     def __finaliser_entree_medocs(self):
         if not self.list_medocs_entree.controls:
@@ -1037,8 +1118,8 @@ class EntreeStockView(Column):
                         self.__reinitialiser_entree()
                     case "Enter":
                         self.add_medoce_panier(None)
-        except:
-            pass
+        except Exception as e:
+            print(e)
 
 
 class PrincipalView(Column):
@@ -1057,7 +1138,8 @@ class PrincipalView(Column):
         self.draft_handler = draft_handler
         self.list_medocs_panier = ListView(
             auto_scroll=True,
-            controls=[],
+            controls=[],  # self.__medocs_panier(),
+            build_controls_on_demand=True,
         )
         self.reduction_accordee = CustomTextField(
             label="Réduction accordée",
@@ -1287,7 +1369,10 @@ class PrincipalView(Column):
     def __select_date(self, e: ControlEvent):
         self.current_date = e.control.value
         self.date_field.value = str(e.control.value.strftime("%d-%m-%Y"))
-        self.date_field.update()
+        try:
+            self.date_field.update()
+        except Exception as e:
+            print(f"Error updating date field: {e}")
 
     def handler_change_taux(self, taux):
         self.taux_dollar = taux
@@ -1345,10 +1430,13 @@ class PrincipalView(Column):
         )
 
         self.previous_devise = self.devises.value
-        self.prix_unitaire.update()
-        self.prix_total.update()
-        self.charges_connexes.update()
-        self.reduction_accordee.update()
+        try:
+            self.prix_unitaire.update()
+            self.prix_total.update()
+            self.charges_connexes.update()
+            self.reduction_accordee.update()
+        except Exception as e:
+            print(f"Error updating fields: {e}")
         self._calcul_totaux()
 
     def __add_draft(self, e):
@@ -1376,77 +1464,100 @@ class PrincipalView(Column):
                 )
             draft_lists.append(draft)
             self.page.run_thread(save_drafts, draft_lists)
-            self.__reinitialiser_entree()
-            self.__renitialiser_panier(e)
+            try:
+                self.__reinitialiser_entree()
+                self.__renitialiser_panier(e)
+            except Exception as e:
+                print(f"Error resetting entry or cart: {e}")
         self._calcul_totaux()
 
     def add_medoce_panier(self, e):
         if isinstance(e, list):
             self.list_medocs_panier.controls = e
-            self.list_medocs_panier.update()
+            try:
+                self.list_medocs_panier.update()
+            except Exception as e:
+                print(f"Error updating list_medocs_panier: {e}")
+
             self.__reinitialiser_entree()
+            return
+        if (not isinstance(self.produit_designation.selected_index, int)) or (
+            self.produit_designation.selected_index is None
+        ):
             return
         if (
-            self.produit_designation.selected_index == 0
-            or self.produit_designation.selected_index
-        ) and db.is_medoc_exists(
-            self.produit_designation.suggestions[
-                self.produit_designation.selected_index
-            ].value
-        ):
-
-            self.list_medocs_panier.controls.append(
-                Medicament(
-                    nom=self.produit_designation.suggestions[
-                        self.produit_designation.selected_index
-                    ].value,
-                    quantite=self.quantite.value if self.quantite.value else 0,
-                    forme=self.forme.value,
-                    prix_unitaire=(
-                        self.prix_unitaire.value if self.prix_unitaire.value else 0
-                    ),
-                    prix_total=self.prix_total.value,
-                    medoc_delete=self._delete_medoc,
-                    calcul_totaux=self._calcul_totaux,
-                    devise_initiale=self.devises.value or "FC",
-                )
+            isinstance(self.produit_designation.selected_index, int)
+            and (
+                self.produit_designation.selected_index == 0
+                or self.produit_designation.selected_index
             )
-            self.list_medocs_panier.update()
-            self.__reinitialiser_entree()
+            and db.is_medoc_exists(
+                self.produit_designation.suggestions[
+                    self.produit_designation.selected_index
+                ].value
+            )
+        ):
+            try:
+                self.list_medocs_panier.controls.append(
+                    Medicament(
+                        nom=self.produit_designation.suggestions[
+                            self.produit_designation.selected_index
+                        ].value,
+                        quantite=self.quantite.value if self.quantite.value else 0,
+                        forme=self.forme.value,
+                        prix_unitaire=(
+                            self.prix_unitaire.value if self.prix_unitaire.value else 0
+                        ),
+                        prix_total=self.prix_total.value,
+                        medoc_delete=self._delete_medoc,
+                        calcul_totaux=self._calcul_totaux,
+                        devise_initiale=self.devises.value or "FC",
+                    )
+                )
+                try:
+                    self.list_medocs_panier.update()
+                except Exception as e:
+                    print(f"Error updating list_medocs_panier: {e}")
+                    # Copier les cotroles de la liste dans une nouvelle liste
+                    # try:
+                    #     self.list_medocs_panier = ListView(
+                    #         expand=True,
+                    #         controls=self.list_medocs_panier.controls,
+                    #     )
+                    # except Exception as e:
+                    #     print(f"Error updating and changing list_medocs_panier: {e}")
+
+            except Exception as e:
+                print(e)
+            else:
+                self.__reinitialiser_entree()
+                self._calcul_totaux()
         else:
             return
-        self._calcul_totaux()
 
     def _delete_medoc(self, medoc):
         self.list_medocs_panier.controls.remove(medoc)
-        self.list_medocs_panier.update()
+        try:
+            self.list_medocs_panier.update()
+        except Exception as e:
+            print(f"Error updating list_medocs_panier: {e}")
         self._calcul_totaux()
 
     def __renitialiser_panier(self, e):
         self.list_medocs_panier.controls = []
         self.nom_client.value = ""
         self.date_field.value = str(self.current_date.strftime("%d-%m-%Y"))
-        self.list_medocs_panier.update()
-        self.nom_client.update()
-        self.date_field.update()
+        try:
+            self.list_medocs_panier.update()
+            self.nom_client.update()
+            self.date_field.update()
+        except Exception as e:
+            print(f"Error updating fields: {e}")
         self._calcul_totaux()
-        self.__reinitialiser_entree()
-        self.list_medocs_panier.update()
-
-    def __incrise_quantite(self, e):
-        self.quantite.value = (
-            str(int(self.quantite.value) + 1) if self.quantite.value else 1
-        )
-        self.quantite.update()
-        self.__update_prix_total(None)
-
-    def __desincrise_quantite(self, e):
-        if self.quantite.value and int(self.quantite.value) > 0:
-            self.quantite.value = str(int(self.quantite.value) - 1)
-        else:
-            self.quantite.value = "0"
-        self.quantite.update()
-        self.__update_prix_total(None)
+        try:
+            self.list_medocs_panier.update()
+        except Exception as e:
+            print(f"Error updating list_medocs_panier: {e}")
 
     def __input_medoc(self):
         self.quantite = CustomTextField(
@@ -1454,7 +1565,6 @@ class PrincipalView(Column):
             input_filter=NumbersOnlyInputFilter(),
             col=1,
             on_change=self.__update_prix_total,
-            on_submit=self.add_medoce_panier,
             suffix=Column(
                 alignment=MainAxisAlignment.START,
                 horizontal_alignment=CrossAxisAlignment.CENTER,
@@ -1468,7 +1578,7 @@ class PrincipalView(Column):
                         padding=padding.all(0),
                         height=15,
                         width=20,
-                        on_click=self.__incrise_quantite,
+                        on_click=lambda e: self.__update_prix_total("incrise"),
                     ),
                     IconButton(
                         icon=Icons.ARROW_DROP_DOWN,
@@ -1477,13 +1587,13 @@ class PrincipalView(Column):
                         padding=padding.all(0),
                         height=15,
                         width=20,
-                        on_click=self.__desincrise_quantite,
+                        on_click=lambda e: self.__update_prix_total("desincrise"),
                     ),
                 ],
             ),
         )
         self.forme = CustomTextField(
-            label="Forme", col=2, on_submit=self.add_medoce_panier
+            label="Forme", col=2,
         )
         self.prix_unitaire = CustomTextField(
             label="Prix",
@@ -1491,7 +1601,6 @@ class PrincipalView(Column):
             input_filter=InputFilter(regex_string=r"^(\d*\.?\d+|\d+\.?\d*|\d*)$"),
             col=2,
             on_change=self.__update_prix_total,
-            on_submit=self.add_medoce_panier,
         )
         self.prix_total = Text("0", weight=FontWeight.BOLD)
         self.produit_designation = AutoComplete(
@@ -1578,9 +1687,12 @@ class PrincipalView(Column):
         )
         total = int(total) if total.is_integer() else round(total, 3)
         self.montant_chiffre.value = number_to_words(total)
-        self.net_a_payer.update()
-        self.montant_chiffre.update()
-        self.totaux.update()
+        try:
+            self.net_a_payer.update()
+            self.montant_chiffre.update()
+            self.totaux.update()
+        except Exception as e:
+            print(f"Error updating totals: {e}")
 
     def __select_medoc_from_suggestion(self, e: AutoCompleteSelectEvent):
         medoc = db.get_medocs_by_name(e.selection.key)
@@ -1591,16 +1703,37 @@ class PrincipalView(Column):
             if self.devises.value == "$"
             else float(medoc[0][6])
         )  # prix de vente
-        self.prix_unitaire.value = str(round(prix, 3))
+        self.prix_unitaire.value = str(round(prix, 3) or "0")
         self.forme.value = medoc[0][11] or ""
         self.prix_total.value = str(
             round(float(self.prix_unitaire.value) * float(self.quantite.value), 3)
         )
-        self.prix_unitaire.update()
-        self.prix_total.update()
-        self.page.update()
+        try:
+            self.prix_unitaire.update()
+            self.prix_total.update()
+        except Exception as e:
+            print(f"Error updating price fields: {e}")
+        # self.page.update()
 
     def __update_prix_total(self, e):
+        if e == "incrise":
+            self.quantite.value = (
+                str(int(self.quantite.value) + 1) if self.quantite.value else 1
+            )
+            try:
+                self.quantite.update()
+            except Exception as e:
+                print(f"Error updating quantite: {e}")
+        elif e == "desincrise":
+            if self.quantite.value and int(self.quantite.value) > 0:
+                self.quantite.value = str(int(self.quantite.value) - 1)
+            else:
+                self.quantite.value = "0"
+            try:
+                self.quantite.update()
+            except Exception as e:
+                print(f"Error updating quantite: {e}")
+
         self.prix_total.value = str(
             round(
                 float(self.prix_unitaire.value if self.prix_unitaire.value else 0)
@@ -1608,7 +1741,10 @@ class PrincipalView(Column):
                 3,
             )
         )
-        self.prix_total.update()
+        try:
+            self.prix_total.update()
+        except Exception as e:
+            print(f"Error updating price fields: {e}")
 
     def __reinitialiser_entree(self, e=None):
         self.prix_total.value = "0"
@@ -1623,13 +1759,27 @@ class PrincipalView(Column):
         )
         self.container_designation.content = self.produit_designation
 
-        self.charges_connexes.update()
-        self.reduction_accordee.update()
-        self.prix_total.update()
-        self.forme.update()
-        self.quantite.update()
-        self.prix_unitaire.update()
-        self.container_designation.update()
+        try:
+            self.charges_connexes.update()
+            self.reduction_accordee.update()
+            self.prix_total.update()
+            self.forme.update()
+            self.quantite.update()
+            self.prix_unitaire.update()
+            self.container_designation.update()
+        except Exception as e:
+            print(f"Error updating fields: {e}")
+
+    def reinitialiser_entree_produit_new(self):
+        self.produit_designation = AutoComplete(
+            suggestions=list(self.__autocomplete_suggestions()),
+            on_select=self.__select_medoc_from_suggestion,
+        )
+        self.container_designation.content = self.produit_designation
+        try:
+            self.container_designation.update()
+        except Exception as e:
+            print(f"Error updating container_designation on add new product : {e}")
 
     def __speack(self):
         speaker = Speaker()
@@ -1648,9 +1798,12 @@ class PrincipalView(Column):
             self.devises.value = draft_list[0].devise.value
             self.previous_devise = draft_list[0].devise.value
         self.nom_client.value = nom_client
-        self.nom_client.update()
-        self.devises.update()
-        self.list_medocs_panier.update()
+        try:
+            self.nom_client.update()
+            self.devises.update()
+            self.list_medocs_panier.update()
+        except Exception as e:
+            print(f"Error updating fields: {e}")
         self._calcul_totaux()
 
     def finaliser_vente(self):
@@ -1678,7 +1831,7 @@ class PrincipalView(Column):
                     prix_total=round(float(medoc.prix_total.value), 3) or 0,
                     id_facture=num_facture,
                     nom_client=self.nom_client.value,
-                    date=datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S"),
+                    date=self.date_field.value+datetime.datetime.now().strftime(" %H:%M:%S"),
                     devise=self.devises.value,
                     reductions=round(float(self.reduction_accordee.value), 3) or 0.0,
                     charges_connexes=round(float(self.charges_connexes.value), 3)
@@ -1692,7 +1845,10 @@ class PrincipalView(Column):
                         Text("Une erreur est survenue, veuillez ressayer !"), open=True
                     )
                 )
-                self.page.update()
+                try:
+                    self.page.update()
+                except Exception as e:
+                    print(f"Error updating page in finaliser facture: {e}")
                 return
         self.page.run_thread(
             db.update_medocs_quantities, names_medocs, quantities_medocs
@@ -1708,7 +1864,10 @@ class PrincipalView(Column):
         self.page.overlay.append(
             SnackBar(Text("La vente a été enregistrée avec succès"), open=True)
         )
-        self.page.update()
+        try:
+            self.page.update()
+        except Exception as e:
+            print(f"Error updating page in finaliser facture: {e}")
 
         self.imprimer_facture(num_facture)
 
@@ -1736,7 +1895,7 @@ class PrincipalView(Column):
                 charges_connexes=str(self.charges_connexes.value)
                 + " "
                 + self.devises.value,
-                date=datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S"),
+                date=self.date_field.value.strip()+datetime.datetime.now().strftime(" %H:%M:%S"),
                 nom_client=self.nom_client.value,
                 num_facture=num_facture,
                 bar_code="F-" + str(num_facture) + "-" + str(self.current_date.year),
@@ -1757,8 +1916,8 @@ class PrincipalView(Column):
                         self.__reinitialiser_entree(None)
                     case "Enter":
                         self.add_medoce_panier(None)
-        except:
-            pass
+        except Exception as e:
+            print(e)
 
 
 class Accueil(Container):
@@ -1949,9 +2108,12 @@ class Accueil(Container):
         try:
             self.current_view.content = self.__entree_stock_view
             self.page.on_keyboard_event = self.__entree_stock_view.handler_keyboard_key
-            self.current_view.update()
-        except:
-            pass
+            try:
+                self.current_view.update()
+            except Exception as e:
+                print(f"Error updating current view: {e}")
+        except Exception as e:
+            print(e)
 
     def __change_view(self, e: ControlEvent):
         try:
@@ -1981,9 +2143,12 @@ class Accueil(Container):
                 case "Tableau de bord":
                     self.current_view.content = TableauBordView(self.page)
                     self.page.on_keyboard_event = None
-            self.current_view.update()
-        except:
-            pass
+            try:
+                self.current_view.update()
+            except Exception as e:
+                print(f"Error updating current view: {e}")
+        except Exception as e:
+            print(e)
 
     def __change_taux_dollar(self, e):
         if self.taux_dollar.value:
@@ -2000,12 +2165,18 @@ class Accueil(Container):
                     show_close_icon=True,
                 )
             )
-            self.page.update()
+            try:
+                self.page.update()
+            except Exception as e:
+                print(f"Error updating page: {e}")
 
     def __select_date(self, e: ControlEvent):
         self.current_date = e.control.value
         self.date_field.value = str(e.control.value.strftime("%d-%m-%Y"))
-        self.date_field.update()
+        try:
+            self.date_field.update()
+        except Exception as e:
+            print(f"Error updating date field: {e}")
 
     def __add_new_product(self, e):
         self.page.on_keyboard_event = None
@@ -2109,17 +2280,26 @@ class Accueil(Container):
         )
 
         self.page.open(self.dialog)
-        self.page.update()
+        try:
+            self.page.update()
+        except Exception as e:
+            print(f"Error updating page: {e}")
 
     def __pick_file_db(self, result: FilePickerResultEvent):
         try:
             self.db_file_picked.value = result.files[0].name
-            self.db_file_picked.update()
+            try:
+                self.db_file_picked.update()
+            except Exception as e:
+                print(f"Error updating db_file_picked: {e}")
             self.path_csv = result.files[0].path
         except Exception as e:
-            pass
+            print(f"Error picking file: {e}")
         finally:
-            self.page.update()
+            try:
+                self.page.update()
+            except Exception as e:
+                print(f"Error updating page: {e}")
 
     def __add_draft(self, list_draft, nom_client, date):
         self.list_medocs_draft.controls.append(
@@ -2132,7 +2312,10 @@ class Accueil(Container):
                 self.__load_draft,
             )
         )
-        self.list_medocs_draft.update()
+        try:
+            self.list_medocs_draft.update()
+        except Exception as e:
+            print(f"Error updating list_medocs_draft: {e}")
 
     def __verifier_produit(self, e):
         if self.nom.value:
@@ -2140,14 +2323,20 @@ class Accueil(Container):
                 self.button_ajouter.disabled = True
                 self.button_ajouter.bgcolor = "#B4B4B4"
                 self.nom.error_text = "Ce produit existe déjà"
-                self.nom.update()
-                self.button_ajouter.update()
+                try:
+                    self.nom.update()
+                    self.button_ajouter.update()
+                except Exception as e:
+                    print(f"Error updating fields: {e}")
             else:
                 self.nom.error_text = ""
                 self.button_ajouter.disabled = False
                 self.button_ajouter.bgcolor = "blue"
-                self.button_ajouter.update()
-                self.nom.update()
+                try:
+                    self.button_ajouter.update()
+                    self.nom.update()
+                except Exception as e:
+                    print(f"Error updating fields: {e}")
 
     def __add_medoc_to_db(self, e):
         if self.db_file_picked.value:
@@ -2160,17 +2349,27 @@ class Accueil(Container):
                         Text("Les produits ont été ajoutés avec succès"), open=True
                     )
                 )
-                self.page.update()
+                try:
+                    self.page.update()
+                except Exception as e:
+                    print(f"Error updating page: {e}")
             except Exception as e:
+                print(f"Error importing CSV: {e}")
                 if self.page.overlay:
                     self.page.overlay.clear()
                 self.page.overlay.append(
                     SnackBar(Text("Une erreur est survenue !"), open=True)
                 )
-                self.page.update()
+                try:
+                    self.page.update()
+                except Exception as e:
+                    print(f"Error updating page: {e}")
             finally:
-                self.page.close(self.dialog)
-                self.page.update()
+                try:
+                    self.page.close(self.dialog)
+                    self.page.update()
+                except Exception as e:
+                    print(f"Error closing dialog or updating page: {e}")
                 return
         elif (
             self.nom.value
@@ -2198,7 +2397,8 @@ class Accueil(Container):
                     )
                 )
 
-            except:
+            except Exception as e:
+                print(f"Error adding medoc: {e}")
                 if self.page.overlay:
                     self.page.overlay.clear()
                 self.page.overlay.append(
@@ -2210,9 +2410,16 @@ class Accueil(Container):
                 self.page.overlay.append(
                     SnackBar(Text("Le produit a été ajouté avec succès"), open=True)
                 )
-
-        self.page.close(self.dialog)
-        self.page.update()
+            try:
+                self.__principal_view.list_all_medocs_db = db.get_all_medocs_list()
+                self.__principal_view.reinitialiser_entree_produit_new()
+            except Exception as e:
+                print(f"Error updating autocompletion after adding new medoc")
+        try:
+            self.page.close(self.dialog)
+            self.page.update()            
+        except Exception as e:
+            print(f"Error closing dialog or updating page: {e}")
 
     def __renitialiser_produit(self, e):
         self.nom.value = ""
@@ -2221,16 +2428,22 @@ class Accueil(Container):
         self.prix_vente.value = "0"
         self.date_field.value = str(self.current_date.strftime("%d-%m-%Y"))
         self.db_file_picked.value = " "
-        self.nom.update()
-        self.forme.update()
-        self.prix_achat.update()
-        self.prix_vente.update()
-        self.date_field.update()
-        self.db_file_picked.update()
+        try:
+            self.nom.update()
+            self.forme.update()
+            self.prix_achat.update()
+            self.prix_vente.update()
+            self.date_field.update()
+            self.db_file_picked.update()
+        except Exception as e:
+            print(f"Error updating fields: {e}")
 
     def __delete_draft(self, e):
         self.list_medocs_draft.controls.remove(e)
-        self.list_medocs_draft.update()
+        try:
+            self.list_medocs_draft.update()
+        except Exception as e:
+            print(f"Error updating list_medocs_draft: {e}")
         nom_client = "" if e.nom_client == "" else e.nom_client
         date = e.date
         list_medocs_drafts = []
@@ -2257,7 +2470,10 @@ class Accueil(Container):
     def __load_draft(self, e):
         if self.current_view.content != self.__principal_view:
             return
-        self.__principal_view.load_draft(e.list_medicaments, e.nom_client)
+        try:
+            self.__principal_view.load_draft(e.list_medicaments, e.nom_client)
+        except Exception as e:
+            print(f"Error loading draft: {e}")
         # self.__delete_draft(e)
 
     def init_drafts(self):
@@ -2293,6 +2509,10 @@ class Accueil(Container):
                         self.__load_draft,
                     )
                 )
+        try:
+            self.list_medocs_draft.update()
+        except Exception as e:
+            print(f"Error updating list_medocs_draft: {e}")
         return all_drafts
 
         # self._calcul_totaux()
@@ -2475,24 +2695,36 @@ class VenteView(Column):
 
     def __restore_search_bar(self):
         self.search_bar.value = ""
-        self.search_bar.update()
+        try:
+            self.search_bar.update()
+        except Exception as e:
+            print(f"Error updating search bar: {e}")
         self.data_table.rows = list(self.__invoices())
-        self.data_table.update()
+        try:
+            self.data_table.update()
+        except Exception as e:
+            print(f"Error updating data table: {e}")
 
     def __search_invoice(self):
-        invoices_found = db.get_all_mouvement_facture_by_id_facture(
-            self.search_bar.value
-        )
-        if invoices_found:
-            self.data_table.rows = list(self.__invoices_searched(invoices_found))
-            self.data_table.update()
-        else:
-            if self.page.overlay:
-                self.page.overlay.clear()
-            self.page.overlay.append(
-                SnackBar(Text("Aucune facture trouvée"), open=True)
+        try:
+            invoices_found = db.get_all_mouvement_facture_by_client_name(
+                self.search_bar.value.upper()
             )
-        self.page.update()
+            if invoices_found:
+                self.data_table.rows = list(self.__invoices_searched(invoices_found))
+                try:
+                    self.data_table.update()
+                except Exception as e:
+                    print(f"Error updating data table: {e}")
+            else:
+                if self.page.overlay:
+                    self.page.overlay.clear()
+                self.page.overlay.append(
+                    SnackBar(Text("Aucune facture trouvée"), open=True)
+                )
+            self.page.update()
+        except Exception as e:
+            print(f"Error searching invoice: {e}")
 
     def __invoices_searched(self, invoices_found):
         unique_invoices = {}
@@ -2521,13 +2753,17 @@ class VenteView(Column):
 
     def __invoices(self):
         start_index = self.current_page * self.items_per_page
+        #print(f"Start index : {start_index}")
         end_index = start_index + self.items_per_page
-        invoices = db.get_all_mouvement_facture()[start_index:end_index]
+        #print(f"End index : {end_index}")
+        invoices = db.get_all_mouvement_facture()#[start_index:end_index]
+
         unique_invoices = {}
         for invoice in invoices:
             if invoice[6] not in unique_invoices:
                 unique_invoices[invoice[6]] = {"invoice": invoice, "total": 0}
             unique_invoices[invoice[6]]["total"] += float(invoice[5])
+        # unique_invoices = unique_invoices[start_index:end_index]
         for invoice_data in unique_invoices.values():
             invoice = invoice_data["invoice"]
             total = invoice_data["total"]
@@ -2570,8 +2806,14 @@ class VenteView(Column):
         self.controls[-1].controls[2].disabled = (
             self.current_page >= self.total_pages - 1
         )
-        self.data_table.update()
-        self.page.update()
+        try:
+            self.data_table.update()
+        except Exception as e:
+            print(f"Error updating data table: {e}")
+        try:
+            self.page.update()
+        except Exception as e:
+            print(f"Error updating page: {e}")
 
     def __print_invoice(self, invoice_id):
         # Implement the logic to print the invoice using the invoice_id
@@ -2823,7 +3065,10 @@ def main(page: Page):
                     padding=padding.all(0),
                 )
             )
-        page.update()
+        try:
+            page.update()
+        except Exception as e:
+            print(f"Error updating page: {e}")
 
     def on_view_pop(view):
         page.views.pop()
