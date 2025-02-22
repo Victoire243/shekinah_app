@@ -1593,7 +1593,8 @@ class PrincipalView(Column):
             ),
         )
         self.forme = CustomTextField(
-            label="Forme", col=2,
+            label="Forme",
+            col=2,
         )
         self.prix_unitaire = CustomTextField(
             label="Prix",
@@ -1831,7 +1832,8 @@ class PrincipalView(Column):
                     prix_total=round(float(medoc.prix_total.value), 3) or 0,
                     id_facture=num_facture,
                     nom_client=self.nom_client.value,
-                    date=self.date_field.value+datetime.datetime.now().strftime(" %H:%M:%S"),
+                    date=self.date_field.value
+                    + datetime.datetime.now().strftime(" %H:%M:%S"),
                     devise=self.devises.value,
                     reductions=round(float(self.reduction_accordee.value), 3) or 0.0,
                     charges_connexes=round(float(self.charges_connexes.value), 3)
@@ -1895,7 +1897,8 @@ class PrincipalView(Column):
                 charges_connexes=str(self.charges_connexes.value)
                 + " "
                 + self.devises.value,
-                date=self.date_field.value.strip()+datetime.datetime.now().strftime(" %H:%M:%S"),
+                date=self.date_field.value.strip()
+                + datetime.datetime.now().strftime(" %H:%M:%S"),
                 nom_client=self.nom_client.value,
                 num_facture=num_facture,
                 bar_code="F-" + str(num_facture) + "-" + str(self.current_date.year),
@@ -1931,6 +1934,17 @@ class Accueil(Container):
             keyboard_type=KeyboardType.NUMBER,
             input_filter=InputFilter(regex_string=r"^(\d*\.?\d+|\d+\.?\d*|\d*)$"),
         )
+        self.notifications_button = CustomElevatedButton(
+            text="Notifications",
+            icon=Icons.NOTIFICATIONS,
+            on_click=self.__change_view,
+            badge=Badge(
+                text="0",
+                alignment=alignment.top_center,
+                bgcolor="red",
+                text_color="white",
+            ),
+        )
         self.__principal_view = PrincipalView(
             self.page,
             draft_handler=self.__add_draft,
@@ -1946,6 +1960,10 @@ class Accueil(Container):
         self.current_view = Container(
             content=self.__principal_view, expand=True, expand_loose=True
         )
+        self.__notifications_views = NotificationsView(
+            self.page, self.notifications_button
+        )
+
         self.list_medocs_draft = ListView(
             auto_scroll=True,
             controls=self.init_drafts(),
@@ -2033,6 +2051,7 @@ class Accueil(Container):
                                 icon=Icons.BAR_CHART,
                                 on_click=self.__change_view,
                             ),
+                            self.notifications_button,
                             Container(height=20),
                             Text(
                                 "FACTURES ENREGISTREES",
@@ -2143,6 +2162,9 @@ class Accueil(Container):
                 case "Tableau de bord":
                     self.current_view.content = TableauBordView(self.page)
                     self.page.on_keyboard_event = None
+                case "Notifications":
+                    self.current_view.content = self.__notifications_views
+                    self.page.on_keyboard_event = None
             try:
                 self.current_view.update()
             except Exception as e:
@@ -2172,7 +2194,8 @@ class Accueil(Container):
 
     def __select_date(self, e: ControlEvent):
         self.current_date = e.control.value
-        self.date_field.value = str(e.control.value.strftime("%d-%m-%Y"))
+        self.date_field.value = str(e.control.value.strftime("%Y-%m-%d"))
+        self.__verifier_expiration_produit(None)
         try:
             self.date_field.update()
         except Exception as e:
@@ -2196,12 +2219,12 @@ class Accueil(Container):
             value="0",
             height=60,
         )
-        self.current_date = datetime.datetime.now()
+        self.current_date = datetime.datetime.now() + datetime.timedelta(days=30)
         self.date_field = CustomTextField(
             label="Date d'expiration",
             read_only=True,
             height=60,
-            value=str(self.current_date.strftime("%d-%m-%Y")),
+            value=str(self.current_date.strftime("%Y-%m-%d")),
             prefix_icon=Icon(Icons.CALENDAR_TODAY, color="black"),
             on_click=lambda e: self.page.open(
                 DatePicker(
@@ -2338,12 +2361,34 @@ class Accueil(Container):
                 except Exception as e:
                     print(f"Error updating fields: {e}")
 
+    def __verifier_expiration_produit(self, e):
+        if self.date_field.value:
+            if (
+                datetime.datetime.strptime(self.date_field.value, "%Y-%m-%d").date()
+                < datetime.datetime.now().date()
+            ):
+                self.button_ajouter.disabled = True
+                self.button_ajouter.bgcolor = "#B4B4B4"
+                self.date_field.error_text = "Le produit est déjà expiré"
+                try:
+                    self.date_field.update()
+                    self.button_ajouter.update()
+                except Exception as e:
+                    print(f"Error updating fields: {e}")
+            else:
+                self.date_field.error_text = ""
+                self.button_ajouter.disabled = False
+                self.button_ajouter.bgcolor = "blue"
+                try:
+                    self.button_ajouter.update()
+                    self.date_field.update()
+                except Exception as e:
+                    print(f"Error updating fields: {e}")
+
     def __add_medoc_to_db(self, e):
         if self.db_file_picked.value:
             try:
                 db.import_csv_to_db(self.path_csv)
-                if self.page.overlay:
-                    self.page.overlay.clear()
                 self.page.overlay.append(
                     SnackBar(
                         Text("Les produits ont été ajoutés avec succès"), open=True
@@ -2355,8 +2400,6 @@ class Accueil(Container):
                     print(f"Error updating page: {e}")
             except Exception as e:
                 print(f"Error importing CSV: {e}")
-                if self.page.overlay:
-                    self.page.overlay.clear()
                 self.page.overlay.append(
                     SnackBar(Text("Une erreur est survenue !"), open=True)
                 )
@@ -2368,6 +2411,8 @@ class Accueil(Container):
                 try:
                     self.page.close(self.dialog)
                     self.page.update()
+                    if self.page.overlay:
+                        self.page.overlay.clear()
                 except Exception as e:
                     print(f"Error closing dialog or updating page: {e}")
                 return
@@ -2390,7 +2435,7 @@ class Accueil(Container):
                         self.forme.value.upper(),
                         datetime.datetime.now(),
                         datetime.datetime.strptime(
-                            self.date_field.value, "%d-%m-%Y"
+                            self.date_field.value, "%Y-%m-%d"
                         ).date(),
                         float(self.prix_achat.value),
                         float(self.prix_vente.value),
@@ -2399,14 +2444,10 @@ class Accueil(Container):
 
             except Exception as e:
                 print(f"Error adding medoc: {e}")
-                if self.page.overlay:
-                    self.page.overlay.clear()
                 self.page.overlay.append(
                     SnackBar(Text("Erreur lors de l'ajout du produit"), open=True)
                 )
             else:
-                if self.page.overlay:
-                    self.page.overlay.clear()
                 self.page.overlay.append(
                     SnackBar(Text("Le produit a été ajouté avec succès"), open=True)
                 )
@@ -2417,7 +2458,9 @@ class Accueil(Container):
                 print(f"Error updating autocompletion after adding new medoc")
         try:
             self.page.close(self.dialog)
-            self.page.update()            
+            self.page.update()
+            if self.page.overlay:
+                self.page.overlay.clear
         except Exception as e:
             print(f"Error closing dialog or updating page: {e}")
 
@@ -2753,10 +2796,10 @@ class VenteView(Column):
 
     def __invoices(self):
         start_index = self.current_page * self.items_per_page
-        #print(f"Start index : {start_index}")
+        # print(f"Start index : {start_index}")
         end_index = start_index + self.items_per_page
-        #print(f"End index : {end_index}")
-        invoices = db.get_all_mouvement_facture()#[start_index:end_index]
+        # print(f"End index : {end_index}")
+        invoices = db.get_all_mouvement_facture()  # [start_index:end_index]
 
         unique_invoices = {}
         for invoice in invoices:
@@ -3041,6 +3084,77 @@ class CardTableauBord(Container):
                 ),
             ],
         )
+
+
+class NotificationsView(Column):
+    def __init__(self, page: Page, notifications_button: CustomElevatedButton):
+        super().__init__()
+        self.page = page
+        self.notifications_button = notifications_button
+        self.expand = True
+        self.horizontal_alignment = CrossAxisAlignment.STRETCH
+        self.medocs_names_qte_expration = (
+            db.get_all_medocs_names_quantity_expiration_date()
+        )
+        self.page.run_thread(self.__expirations)
+        self.controls = [
+            Container(
+                bgcolor="black",
+                height=110,
+                border_radius=border_radius.only(top_left=15, top_right=15),
+                padding=padding.symmetric(horizontal=20, vertical=10),
+                content=Text("Notifications", size=20, weight="bold", color="white"),
+                alignment=alignment.center_left,
+            ),
+            Container(
+                expand=True,
+                padding=padding.symmetric(horizontal=20, vertical=10),
+                alignment=alignment.center_left,
+            ),
+        ]
+
+    def __expirations(self):
+        medocs_expire_in_one_week = []
+        medocs_expire_in_one_month = []
+        medocs_expire_in_two_month = []
+        medocs_expire_in_tree_month = []
+        medocs_qte_inf_50 = []
+        medocs_qte_inf_0 = []
+        for medoc in self.medocs_names_qte_expration:
+            if datetime.datetime.strptime(
+                medoc[2], "%Y-%m-%d"
+            ).date() < datetime.datetime.now().date() + datetime.timedelta(days=7):
+                medocs_expire_in_one_week.append(medoc)
+            elif datetime.datetime.strptime(
+                medoc[2], "%Y-%m-%d"
+            ).date() < datetime.datetime.now().date() + datetime.timedelta(days=30):
+                medocs_expire_in_one_month.append(medoc)
+            elif datetime.datetime.strptime(
+                medoc[2], "%Y-%m-%d"
+            ).date() < datetime.datetime.now().date() + datetime.timedelta(days=60):
+                medocs_expire_in_two_month.append(medoc)
+            elif datetime.datetime.strptime(
+                medoc[2], "%Y-%m-%d"
+            ).date() < datetime.datetime.now().date() + datetime.timedelta(days=90):
+                medocs_expire_in_tree_month.append(medoc)
+            if medoc[1] < 50:
+                medocs_qte_inf_50.append(medoc)
+            if medoc[1] == 0:
+                medocs_qte_inf_0.append(medoc)
+        nombre_notifications = (
+            bool(medocs_expire_in_one_week)
+            + bool(medocs_expire_in_one_month)
+            + bool(medocs_expire_in_two_month)
+            + bool(medocs_expire_in_tree_month)
+            + bool(medocs_qte_inf_50)
+            + bool(medocs_qte_inf_0)
+        )
+        # actualiser le nombre de notifications
+        try:
+            self.notifications_button.badge.text = str(nombre_notifications)
+            self.notifications_button.update()
+        except Exception as e:
+            print(f"Error updating notifications button: {e}")
 
 
 def main(page: Page):

@@ -632,7 +632,7 @@ class DBUtils:
             if cursor:
                 cursor.close()
 
-    def get_all_mouvement_facture_by_client_name(self, client_name:str):
+    def get_all_mouvement_facture_by_client_name(self, client_name: str):
         cursor = None
         try:
             cursor = self.conn.cursor()
@@ -740,6 +740,26 @@ class DBUtils:
         except sqlite3.Error as e:
             print(f"An error occurred while getting medoc quantity by name: {e}")
             return 0
+        finally:
+            if cursor:
+                cursor.close()
+
+    def get_all_medocs_names_quantity_expiration_date(self):
+        cursor = None
+        try:
+            cursor = self.conn.cursor()
+            query = (
+                "SELECT accounts_produit.nom, accounts_mouvement.qte, "
+                "accounts_produit.date_dexpiration FROM accounts_produit "
+                "INNER JOIN accounts_mouvement ON accounts_produit.id = accounts_mouvement.produit_id"
+            )
+            result = cursor.execute(query).fetchall()
+            return result
+        except sqlite3.Error as e:
+            print(
+                f"An error occurred while getting all medocs names quantity expiration date: {e}"
+            )
+            return []
         finally:
             if cursor:
                 cursor.close()
