@@ -764,6 +764,54 @@ class DBUtils:
             if cursor:
                 cursor.close()
 
+    def get_all_clients_names(self):
+        cursor = None
+        try:
+            cursor = self.conn.cursor()
+            query = "SELECT DISTINCT nom_client FROM accounts_mouvement_facture"
+            result = cursor.execute(query).fetchall()
+            return [client[0] for client in result]
+        except sqlite3.Error as e:
+            print(f"An error occurred while getting all clients names: {e}")
+            return []
+        finally:
+            if cursor:
+                cursor.close()
+
+    def get_medoc_plus_vendu(self):
+        cursor = None
+        try:
+            cursor = self.conn.cursor()
+            query = (
+                "SELECT produit, SUM(quantité) FROM accounts_mouvement_facture "
+                "GROUP BY produit ORDER BY SUM(quantité) DESC"
+            )
+            result = cursor.execute(query).fetchone()
+            return result[0] if result else "Aucun médicament vendu"
+        except sqlite3.Error as e:
+            print(f"An error occurred while getting medoc plus vendu: {e}")
+            return "Aucun médicament vendu"
+        finally:
+            if cursor:
+                cursor.close()
+
+    def get_top_client(self):
+        cursor = None
+        try:
+            cursor = self.conn.cursor()
+            query = (
+                "SELECT nom_client, SUM(prix_total) FROM accounts_mouvement_facture "
+                "GROUP BY nom_client ORDER BY SUM(prix_total) DESC"
+            )
+            result = cursor.execute(query).fetchone()
+            return f"{result[0]} ({result[1]} FC)" if result else "Aucun client"
+        except sqlite3.Error as e:
+            print(f"An error occurred while getting top client: {e}")
+            return "Aucun client"
+        finally:
+            if cursor:
+                cursor.close()
+
 
 if __name__ == "__main__":
     db = DBUtils("assets/db/db_test.sqlite3")
