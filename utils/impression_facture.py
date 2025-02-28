@@ -23,7 +23,7 @@ def generer_facture(
 ):
     # Dossier de sortie
     dossier_sortie = (
-        str(os.path.expanduser("~")).replace("\\", "/") + "/Factures SHEKINA PHARMA/"
+        str(os.path.expanduser("~")).replace("\\", "/") + "/Factures SHEKINAH PHARMA/"
     )
     if not os.path.exists(dossier_sortie):
         os.makedirs(dossier_sortie)
@@ -47,7 +47,7 @@ def generer_facture(
     # --------------------------------------------------------------------------
     # En-tête gauche
     c.setFont("Helvetica-Bold", 11)
-    c.drawString(marge_gauche, y_position, "PHARMACIE SHEKINAK")
+    c.drawString(marge_gauche, y_position, "PHARMACIE SHEKINAH")
     y_position -= 15
     c.drawString(marge_gauche, y_position, "RCCM/20-A-782")
     y_position -= 15
@@ -65,7 +65,7 @@ def generer_facture(
     # En-tête droit et logo
     c.setFont("Helvetica", 11)
     c.drawString(
-        width - marge_droite - 190,
+        width - marge_droite-140,
         height - marge_haut,
         f"Date : {date}",
     )
@@ -78,7 +78,7 @@ def generer_facture(
         logo = ImageReader(logo_path)
         c.drawImage(
             logo,
-            width - marge_droite - 175,
+            width - marge_droite-125,
             height - marge_haut - 110,
             width=100,
             height=100,
@@ -108,7 +108,7 @@ def generer_facture(
         [
             ("BACKGROUND", (0, 0), (-1, 0), colors.grey),  # En-tête
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
-            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("ALIGN", (0, 0), (-1, -1), "LEFT"),
             ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
             ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
             ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
@@ -186,13 +186,13 @@ def generer_facture(
         y_position = height - marge_haut
 
     c.setFont("Helvetica-Bold", 12)
-    c.drawString(marge_gauche, y_position, f"Total : {prix_total}")
+    c.drawRightString(A4[0]-marge_gauche, y_position, f"Total : {prix_total}")
     y_position -= 20
-    c.drawString(marge_gauche, y_position, f"Réduction accordée : {reduction}")
+    c.drawRightString(A4[0]-marge_gauche, y_position, f"Réduction accordée : {reduction}")
     y_position -= 20
-    c.drawString(marge_gauche, y_position, f"Charges connexes : {charges_connexes}")
+    c.drawRightString(A4[0]-marge_gauche, y_position, f"Charges connexes : {charges_connexes}")
     y_position -= 20
-    c.drawString(marge_gauche, y_position, f"Montant final à payer : {montant_final}")
+    c.drawRightString(A4[0]-marge_gauche, y_position, f"Montant final à payer : {montant_final}")
     y_position -= 20
     c.setFillColor(colors.green)
     c.drawString(marge_gauche, y_position, f"En lettre : {montant_en_lettres}")
