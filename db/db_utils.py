@@ -93,7 +93,7 @@ class DBUtils:
 
     def get_medocs_for_list_preview(self):
         try:
-            return self.select(
+            result = self.select(
                 "accounts_produit",
                 [
                     "nom",
@@ -104,6 +104,8 @@ class DBUtils:
                     "prix_vente",
                 ],
             )
+            result.sort(key=lambda x: x[0])
+            return result
         except Exception as e:
             print(f"An error occurred while getting medocs for list preview: {e}")
             return []
@@ -754,6 +756,7 @@ class DBUtils:
                 "INNER JOIN accounts_mouvement ON accounts_produit.id = accounts_mouvement.produit_id"
             )
             result = cursor.execute(query).fetchall()
+            result.sort(key=lambda x: x[0])
             return result
         except sqlite3.Error as e:
             print(

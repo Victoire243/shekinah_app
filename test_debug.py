@@ -3,4 +3,4 @@ from db.db_utils import DBUtils
 
 db = DBUtils("assets/db/db_test.sqlite3")
 
-print(db.get_all_mouvement_facture())
+print(db.get_medocs_for_list_preview())
