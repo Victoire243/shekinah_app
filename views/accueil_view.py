@@ -140,7 +140,7 @@ class AccueilView(Container):
                     content=Row(
                         controls=[
                             Image(
-                                src=str(Path(__file__).parent.resolve()).replace(
+                                src=str(Path(__file__).parent.parent.resolve()).replace(
                                     "\\", "/"
                                 )
                                 + "/assets/images/logo_shekinah_.png",
